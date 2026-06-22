@@ -1,4 +1,5 @@
 pub mod domain;
+pub mod pipeline;
 pub mod storage;
 
 use tauri::Manager;
