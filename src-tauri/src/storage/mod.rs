@@ -1,6 +1,9 @@
 pub mod activity_repo;
 pub mod job_repo;
 pub mod migrations;
+pub mod report_repo;
+pub mod settings_repo;
+pub mod usage_repo;
 
 use rusqlite::Connection;
 use std::path::Path;
