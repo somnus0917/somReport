@@ -1,3 +1,4 @@
+pub mod domain;
 pub mod storage;
 
 use tauri::Manager;
