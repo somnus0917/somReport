@@ -1,5 +1,4 @@
 {
-  "$schema": "https://raw.githubusercontent.com/nicegui/nicegui/refs/heads/main/tauri-conf-schema.json",
   "productName": "daytrace",
   "version": "0.1.0",
   "identifier": "com.daytrace.app",
