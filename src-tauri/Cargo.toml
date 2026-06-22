@@ -31,6 +31,7 @@ zbus = "5"
 log = "0.4"
 env_logger = "0.11"
 async-trait = "0.1"
+base64 = "0.22"
 
 [features]
 default = ["custom-protocol"]
