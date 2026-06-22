@@ -19,8 +19,8 @@ CREATE TABLE IF NOT EXISTS analysis_jobs (
     attempts            INTEGER NOT NULL DEFAULT 0,
     last_error          TEXT,
     image_hash          TEXT,
-    provider            TEXT NOT NULL,
-    model               TEXT NOT NULL,
+    provider            TEXT,
+    model               TEXT,
     created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     finished_at         TEXT
 );
@@ -33,9 +33,9 @@ CREATE TABLE IF NOT EXISTS activities (
     category            TEXT NOT NULL,
     summary             TEXT NOT NULL,
     detail              TEXT,
-    confidence          REAL,
+    confidence          REAL NOT NULL,
     is_work_related     INTEGER NOT NULL DEFAULT 1,
-    source              TEXT NOT NULL DEFAULT 'ai',
+    source              TEXT NOT NULL DEFAULT 'auto',
     edited_at           TEXT,
     deleted_at          TEXT
 );

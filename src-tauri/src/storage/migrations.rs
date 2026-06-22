@@ -22,11 +22,13 @@ pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
         if applied.contains(&name.to_string()) {
             continue;
         }
+        conn.execute_batch("BEGIN TRANSACTION;")?;
         conn.execute_batch(sql)?;
         conn.execute(
             "INSERT INTO _migrations (name) VALUES (?1)",
             rusqlite::params![name],
         )?;
+        conn.execute_batch("COMMIT;")?;
     }
 
     Ok(())
