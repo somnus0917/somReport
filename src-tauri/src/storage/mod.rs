@@ -1,3 +1,4 @@
+pub mod activity_repo;
 pub mod migrations;
 
 use rusqlite::Connection;
