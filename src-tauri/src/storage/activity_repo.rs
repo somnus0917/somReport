@@ -120,6 +120,25 @@ impl Database {
         Ok(())
     }
 
+    pub fn get_activity_by_id(&self, id: &str) -> Result<Option<Activity>, String> {
+        let conn = self.conn();
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, job_id, started_at, ended_at, category, summary, detail, confidence, is_work_related, source, edited_at, deleted_at
+                 FROM activities WHERE id = ?1 AND deleted_at IS NULL",
+            )
+            .map_err(|e| e.to_string())?;
+
+        let mut rows = stmt
+            .query_map(params![id], row_to_activity)
+            .map_err(|e| e.to_string())?;
+
+        match rows.next() {
+            Some(row) => Ok(Some(row.map_err(|e| e.to_string())?)),
+            None => Ok(None),
+        }
+    }
+
     pub fn soft_delete_activity(&self, id: &str) -> Result<(), String> {
         let conn = self.conn();
         let now = Utc::now().to_rfc3339();
