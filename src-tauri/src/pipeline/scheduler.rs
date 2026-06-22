@@ -1,4 +1,9 @@
+use std::sync::Arc;
+
 use tokio::sync::watch;
+
+use crate::domain::{CaptureProvider, VisionProvider};
+use crate::pipeline::queue::QueueWorker;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RecordingState {
@@ -55,6 +60,59 @@ impl CaptureScheduler {
 
     pub fn set_interval(&mut self, sec: u64) {
         self.interval_sec = sec;
+    }
+
+    pub async fn run(
+        &self,
+        capture: Box<dyn CaptureProvider>,
+        vision_provider: Arc<dyn VisionProvider>,
+        model: String,
+        provider_name: String,
+        mut queue_worker: QueueWorker,
+        mut idle_rx: watch::Receiver<bool>,
+    ) {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(self.interval_sec));
+        interval.tick().await; // skip the immediate first tick
+
+        let mut state_rx = self.state_rx.clone();
+
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    let state = *state_rx.borrow_and_update();
+                    if state != RecordingState::Recording {
+                        continue;
+                    }
+
+                    let is_idle = *idle_rx.borrow_and_update();
+                    if is_idle {
+                        log::debug!("User idle, skipping capture");
+                        continue;
+                    }
+
+                    let frame = match capture.capture().await {
+                        Ok(f) => f,
+                        Err(e) => {
+                            log::error!("Capture failed: {}", e);
+                            continue;
+                        }
+                    };
+
+                    match queue_worker.process_frame(&frame, &*vision_provider, &provider_name, &model).await {
+                        Ok(activities) => {
+                            log::info!("Processed frame {}: {} activities", frame.id, activities.len());
+                        }
+                        Err(e) => {
+                            log::error!("Frame processing failed: {}", e);
+                        }
+                    }
+                }
+                _ = state_rx.changed() => {
+                    let new_state = *state_rx.borrow_and_update();
+                    log::info!("Recording state changed to {:?}", new_state);
+                }
+            }
+        }
     }
 }
 
