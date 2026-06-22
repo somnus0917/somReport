@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum Category {
     Development,
