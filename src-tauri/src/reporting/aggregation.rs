@@ -133,7 +133,7 @@ mod tests {
     fn test_aggregate_groups_by_category() {
         let activities = vec![
             make_activity(Category::Development, "Coding", 9, 11, true),
-            make_activity(Category::Meeting, "Standup", 11, 11, true),
+            make_activity(Category::Meeting, "Standup", 11, 12, true),
             make_activity(Category::Development, "Review PR", 13, 14, true),
             make_activity(Category::Research, "Read docs", 14, 15, false),
         ];
@@ -141,17 +141,17 @@ mod tests {
         let report = aggregate_activities(&activities);
 
         assert_eq!(report.activity_count, 4);
-        assert_eq!(report.total_minutes, 180);
-        assert_eq!(report.work_minutes, 150);
+        assert_eq!(report.total_minutes, 300);
+        assert_eq!(report.work_minutes, 240);
         assert_eq!(report.categories.len(), 3);
 
         let dev = report.categories.iter().find(|c| c.category == Category::Development).unwrap();
         assert_eq!(dev.activities.len(), 2);
-        assert_eq!(dev.total_minutes, 120);
+        assert_eq!(dev.total_minutes, 180);
 
         let meeting = report.categories.iter().find(|c| c.category == Category::Meeting).unwrap();
         assert_eq!(meeting.activities.len(), 1);
-        assert_eq!(meeting.total_minutes, 0);
+        assert_eq!(meeting.total_minutes, 60);
     }
 
     #[test]

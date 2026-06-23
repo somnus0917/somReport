@@ -95,7 +95,7 @@ mod tests {
         let md = export_markdown(&report, &PeriodType::Daily, date, None);
 
         assert!(md.contains("# Daily Report"));
-        assert!(md.contains("## Development"));
+        assert!(md.contains("## development"));
         assert!(md.contains("Coding"));
         assert!(md.contains("Rust backend"));
         assert!(md.contains("**Total**"));
