@@ -24,7 +24,30 @@ function ProviderSection({
         Provider
         <select
           value={provider.name}
-          onChange={(e) => updateProvider(which, 'name', e.target.value)}
+          onChange={(e) => {
+            const name = e.target.value;
+            const defaults = name === 'anthropic'
+              ? {
+                  api_url: 'https://api.anthropic.com',
+                  model: 'claude-sonnet-4-20250514',
+                  api_key_env_var: 'ANTHROPIC_API_KEY',
+                }
+              : name === 'qwen'
+                ? {
+                    api_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+                    model: which === 'vision_provider' ? 'qwen-vl-max' : 'qwen-plus',
+                    api_key_env_var: 'QWEN_API_KEY',
+                  }
+              : {
+                  api_url: 'https://api.openai.com/v1',
+                  model: 'gpt-4o-mini',
+                  api_key_env_var: 'OPENAI_API_KEY',
+                };
+            updateProvider(which, 'name', name);
+            updateProvider(which, 'api_url', defaults.api_url);
+            updateProvider(which, 'model', defaults.model);
+            updateProvider(which, 'api_key_env_var', defaults.api_key_env_var);
+          }}
         >
           {PROVIDERS.map((p) => (
             <option key={p.id} value={p.id}>

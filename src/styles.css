@@ -114,6 +114,14 @@ body {
   gap: 0.5rem;
 }
 
+.capture-error {
+  max-width: 360px;
+  margin: 0.35rem 0 0;
+  color: #fca5a5;
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
 .status-badge {
   padding: 0.25rem 0.6rem;
   border-radius: 999px;

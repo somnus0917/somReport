@@ -4,7 +4,9 @@ use chrono::Utc;
 use md5::{Digest, Md5};
 use uuid::Uuid;
 
-use crate::domain::{Activity, AnalysisJob, CapturedFrame, JobStatus, VisionProvider, VisionResult};
+use crate::domain::{
+    Activity, AnalysisJob, CapturedFrame, JobStatus, VisionProvider, VisionResult,
+};
 use crate::pipeline::dedup::DedupChecker;
 use crate::pipeline::retry::{with_retry, RetryConfig};
 use crate::storage::Database;
@@ -28,6 +30,7 @@ impl QueueWorker {
         provider: &dyn VisionProvider,
         provider_name: &str,
         model_name: &str,
+        activity_window_secs: u64,
     ) -> Result<Vec<Activity>, String> {
         let is_dup = self.dedup.check_and_update(&frame.png_data)?;
         if is_dup {
@@ -56,7 +59,7 @@ impl QueueWorker {
 
         match vision_result {
             Ok(result) => {
-                let activities = self.create_activities(&job, frame, &result);
+                let activities = self.create_activities(&job, frame, &result, activity_window_secs);
                 for activity in &activities {
                     self.db.insert_activity(activity)?;
                 }
@@ -76,23 +79,35 @@ impl QueueWorker {
         job: &AnalysisJob,
         frame: &CapturedFrame,
         result: &VisionResult,
+        activity_window_secs: u64,
     ) -> Vec<Activity> {
+        let window_start =
+            frame.captured_at - chrono::Duration::seconds(activity_window_secs as i64);
+        let item_count = result.items.len() as i64;
         result
             .items
             .iter()
-            .map(|item| Activity {
-                id: Uuid::new_v4().to_string(),
-                job_id: job.id.clone(),
-                started_at: frame.captured_at,
-                ended_at: frame.captured_at,
-                category: item.category.clone(),
-                summary: item.summary.clone(),
-                detail: item.detail.clone(),
-                confidence: item.confidence,
-                is_work_related: item.is_work_related,
-                source: "auto".to_string(),
-                edited_at: None,
-                deleted_at: None,
+            .enumerate()
+            .map(|(index, item)| {
+                let start_offset = activity_window_secs as i64 * index as i64 / item_count;
+                let end_offset = activity_window_secs as i64 * (index as i64 + 1) / item_count;
+                Activity {
+                    id: Uuid::new_v4().to_string(),
+                    job_id: job.id.clone(),
+                    // A frame describes the interval since the preceding capture, not an
+                    // instantaneous event. Split it between distinct activities so totals
+                    // never exceed the tracked time window.
+                    started_at: window_start + chrono::Duration::seconds(start_offset),
+                    ended_at: window_start + chrono::Duration::seconds(end_offset),
+                    category: item.category.clone(),
+                    summary: item.summary.clone(),
+                    detail: item.detail.clone(),
+                    confidence: item.confidence,
+                    is_work_related: item.is_work_related,
+                    source: "auto".to_string(),
+                    edited_at: None,
+                    deleted_at: None,
+                }
             })
             .collect()
     }
@@ -107,6 +122,7 @@ fn compute_md5(data: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::{Category, VisionItem};
 
     #[test]
     fn compute_md5_produces_hex_string() {
@@ -118,5 +134,67 @@ mod tests {
     fn compute_md5_empty_input() {
         let hash = compute_md5(b"");
         assert_eq!(hash, "d41d8cd98f00b204e9800998ecf8427e");
+    }
+
+    #[test]
+    fn activities_split_a_capture_window_without_overcounting() {
+        let worker = QueueWorker::new(Arc::new(Database::new_in_memory().unwrap()), 0.98);
+        let captured_at = Utc::now();
+        let frame = CapturedFrame {
+            id: "frame".to_string(),
+            captured_at,
+            png_data: vec![],
+            mime_type: "image/png".to_string(),
+            width: 1,
+            height: 1,
+            display_index: 0,
+            image_hash: None,
+        };
+        let job = AnalysisJob {
+            id: "job".to_string(),
+            captured_at,
+            status: JobStatus::Pending,
+            attempts: 0,
+            last_error: None,
+            image_hash: None,
+            provider: None,
+            model: None,
+            created_at: captured_at,
+            finished_at: None,
+        };
+        let result = VisionResult {
+            items: vec![
+                VisionItem {
+                    category: Category::Development,
+                    summary: "Coding".to_string(),
+                    detail: None,
+                    confidence: 1.0,
+                    is_work_related: true,
+                },
+                VisionItem {
+                    category: Category::Communication,
+                    summary: "Replying".to_string(),
+                    detail: None,
+                    confidence: 1.0,
+                    is_work_related: true,
+                },
+            ],
+        };
+
+        let activities = worker.create_activities(&job, &frame, &result, 30);
+        assert_eq!(activities.len(), 2);
+        assert_eq!(
+            (activities[0].ended_at - activities[0].started_at).num_seconds(),
+            15
+        );
+        assert_eq!(
+            (activities[1].ended_at - activities[1].started_at).num_seconds(),
+            15
+        );
+        assert_eq!(
+            activities[0].started_at,
+            captured_at - chrono::Duration::seconds(30)
+        );
+        assert_eq!(activities[1].ended_at, captured_at);
     }
 }

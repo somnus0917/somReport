@@ -58,10 +58,7 @@ impl CaptureProvider for X11CaptureProvider {
 
     async fn capture(&self) -> Result<CapturedFrame, String> {
         let monitors = Monitor::all().map_err(|e| format!("Failed to enumerate monitors: {e}"))?;
-        let monitor = monitors
-            .into_iter()
-            .next()
-            .ok_or("No monitors found")?;
+        let monitor = monitors.into_iter().next().ok_or("No monitors found")?;
 
         let img = monitor
             .capture_image()
@@ -73,6 +70,7 @@ impl CaptureProvider for X11CaptureProvider {
             id: Uuid::new_v4().to_string(),
             captured_at: Utc::now(),
             png_data: data,
+            mime_type: "image/jpeg".to_string(),
             width,
             height,
             display_index: 0,
@@ -95,6 +93,7 @@ impl CaptureProvider for X11CaptureProvider {
                 id: Uuid::new_v4().to_string(),
                 captured_at: Utc::now(),
                 png_data: data,
+                mime_type: "image/jpeg".to_string(),
                 width,
                 height,
                 display_index: index as u32,

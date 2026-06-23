@@ -19,6 +19,7 @@ interface RecordingStore {
   stats: TodayStats;
   dailyCostCents: number;
   loading: boolean;
+  error: string | null;
 
   fetchToday: () => Promise<void>;
   fetchRecordingState: () => Promise<void>;
@@ -37,6 +38,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   stats: { total_minutes: 0, work_minutes: 0, activity_count: 0 },
   dailyCostCents: 0,
   loading: true,
+  error: null,
 
   fetchToday: async () => {
     const [activities, stats] = await getToday();
@@ -54,7 +56,12 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   },
 
   start: async () => {
-    await startRecording();
+    try {
+      await startRecording();
+      set({ error: null });
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : 'Unable to start recording.' });
+    }
   },
 
   pause: async () => {
@@ -83,11 +90,10 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     const unlistenActivity = onActivityCreated((activity) => {
       set((state) => ({
         activities: [activity, ...state.activities],
-        stats: {
-          ...state.stats,
-          activity_count: state.stats.activity_count + 1,
-        },
+        stats: { ...state.stats, activity_count: state.stats.activity_count + 1 },
       }));
+      void get().fetchToday();
+      void get().fetchDailyUsage();
     });
 
     return () => {

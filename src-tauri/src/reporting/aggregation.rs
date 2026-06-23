@@ -145,11 +145,19 @@ mod tests {
         assert_eq!(report.work_minutes, 240);
         assert_eq!(report.categories.len(), 3);
 
-        let dev = report.categories.iter().find(|c| c.category == Category::Development).unwrap();
+        let dev = report
+            .categories
+            .iter()
+            .find(|c| c.category == Category::Development)
+            .unwrap();
         assert_eq!(dev.activities.len(), 2);
         assert_eq!(dev.total_minutes, 180);
 
-        let meeting = report.categories.iter().find(|c| c.category == Category::Meeting).unwrap();
+        let meeting = report
+            .categories
+            .iter()
+            .find(|c| c.category == Category::Meeting)
+            .unwrap();
         assert_eq!(meeting.activities.len(), 1);
         assert_eq!(meeting.total_minutes, 60);
     }

@@ -7,10 +7,11 @@ pub mod usage_repo;
 
 use rusqlite::Connection;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
+#[derive(Clone)]
 pub struct Database {
-    conn: Mutex<Connection>,
+    conn: Arc<Mutex<Connection>>,
 }
 
 impl Database {
@@ -23,7 +24,7 @@ impl Database {
         )?;
         migrations::run_migrations(&conn)?;
         Ok(Self {
-            conn: Mutex::new(conn),
+            conn: Arc::new(Mutex::new(conn)),
         })
     }
 
@@ -32,7 +33,7 @@ impl Database {
         conn.execute_batch("PRAGMA foreign_keys=ON;")?;
         migrations::run_migrations(&conn)?;
         Ok(Self {
-            conn: Mutex::new(conn),
+            conn: Arc::new(Mutex::new(conn)),
         })
     }
 

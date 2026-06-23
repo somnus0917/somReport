@@ -178,7 +178,7 @@ impl VisionProvider for AnthropicProvider {
                     text: None,
                     source: Some(ImageSource {
                         source_type: "base64",
-                        media_type: "image/png",
+                        media_type: &frame.mime_type,
                         data: &b64,
                     }),
                 },
@@ -186,7 +186,12 @@ impl VisionProvider for AnthropicProvider {
         }];
 
         let content = self
-            .send_message(&self.vision_model, Some(VISION_SYSTEM_PROMPT), messages, 1024)
+            .send_message(
+                &self.vision_model,
+                Some(VISION_SYSTEM_PROMPT),
+                messages,
+                1024,
+            )
             .await?;
         validate_vision_result(&content)
     }

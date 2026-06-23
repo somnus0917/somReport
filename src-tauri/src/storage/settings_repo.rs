@@ -1,5 +1,5 @@
-use crate::domain::AppSettings;
 use super::Database;
+use crate::domain::AppSettings;
 
 const SETTINGS_KEY: &str = "app_settings";
 
@@ -44,7 +44,10 @@ mod tests {
         let settings = db.get_settings().unwrap();
         let defaults = AppSettings::default();
 
-        assert_eq!(settings.capture_interval_secs, defaults.capture_interval_secs);
+        assert_eq!(
+            settings.capture_interval_secs,
+            defaults.capture_interval_secs
+        );
         assert_eq!(settings.idle_timeout_secs, defaults.idle_timeout_secs);
         assert_eq!(settings.max_daily_cost_cents, defaults.max_daily_cost_cents);
         assert_eq!(settings.auto_start, defaults.auto_start);

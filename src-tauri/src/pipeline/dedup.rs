@@ -118,7 +118,10 @@ mod tests {
 
     #[test]
     fn similarity_identical_is_one() {
-        assert_eq!(hash_similarity(0xAAAA_AAAA_AAAA_AAAA, 0xAAAA_AAAA_AAAA_AAAA), 1.0);
+        assert_eq!(
+            hash_similarity(0xAAAA_AAAA_AAAA_AAAA, 0xAAAA_AAAA_AAAA_AAAA),
+            1.0
+        );
     }
 
     #[test]

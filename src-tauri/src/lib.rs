@@ -7,6 +7,8 @@ pub mod providers;
 pub mod reporting;
 pub mod storage;
 
+use std::sync::Arc;
+
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -22,18 +24,42 @@ pub fn run() {
             platform::paths::ensure_dirs().expect("failed to create app directories");
 
             let db = storage::Database::new(&db_path).expect("failed to open database");
-            app.manage(db);
-
-            let settings = {
-                let db_ref = app.state::<storage::Database>();
-                db_ref.get_settings().unwrap_or_default()
-            };
+            let settings = db.get_settings().unwrap_or_default();
+            app.manage(db.clone());
 
             let scheduler = pipeline::scheduler::CaptureScheduler::new(
                 settings.capture_interval_secs as u64,
                 settings.idle_timeout_secs as u64,
             );
+            if settings.auto_start {
+                scheduler.start();
+            }
+
+            let idle_detector =
+                platform::idle::IdleDetector::new(settings.idle_timeout_secs as u64);
+            let scheduler_task = scheduler.clone();
+            let idle_task = idle_detector.clone();
+            let idle_rx = idle_detector.idle_rx();
+            let app_handle = app.handle().clone();
+            let queue_worker = pipeline::queue::QueueWorker::new(Arc::new(db.clone()), 0.98);
+
+            tauri::async_runtime::spawn(async move {
+                idle_task.run().await;
+            });
+            tauri::async_runtime::spawn(async move {
+                scheduler_task
+                    .run(
+                        app_handle,
+                        Box::new(capture::X11CaptureProvider::new()),
+                        queue_worker,
+                        db,
+                        idle_rx,
+                    )
+                    .await;
+            });
+
             app.manage(scheduler);
+            app.manage(idle_detector);
 
             #[cfg(debug_assertions)]
             {

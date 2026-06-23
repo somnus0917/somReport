@@ -1,9 +1,13 @@
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 use tokio::sync::watch;
-use tokio::time::{Duration, interval};
+use tokio::time::{interval, Duration};
 
+#[derive(Clone)]
 pub struct IdleDetector {
-    threshold_sec: u64,
+    threshold_sec: Arc<AtomicU64>,
     idle_tx: watch::Sender<bool>,
     idle_rx: watch::Receiver<bool>,
 }
@@ -12,7 +16,7 @@ impl IdleDetector {
     pub fn new(threshold_sec: u64) -> Self {
         let (idle_tx, idle_rx) = watch::channel(false);
         Self {
-            threshold_sec,
+            threshold_sec: Arc::new(AtomicU64::new(threshold_sec)),
             idle_tx,
             idle_rx,
         }
@@ -26,7 +30,11 @@ impl IdleDetector {
         self.idle_rx.clone()
     }
 
-    pub async fn run(self: Arc<Self>) {
+    pub fn set_threshold(&self, threshold_sec: u64) {
+        self.threshold_sec.store(threshold_sec, Ordering::Relaxed);
+    }
+
+    pub async fn run(&self) {
         if self.try_dbus().await.is_ok() {
             return;
         }
@@ -43,10 +51,15 @@ impl IdleDetector {
         while let Some(result) = stream.next().await {
             let msg = result?;
             let header = msg.header();
-            let is_screensaver_signal = header.interface().map(|i| i.as_str() == "org.freedesktop.ScreenSaver").unwrap_or(false)
-                && header.member().map(|m| m.as_str() == "ActiveChanged").unwrap_or(false);
-            if is_screensaver_signal
-            {
+            let is_screensaver_signal = header
+                .interface()
+                .map(|i| i.as_str() == "org.freedesktop.ScreenSaver")
+                .unwrap_or(false)
+                && header
+                    .member()
+                    .map(|m| m.as_str() == "ActiveChanged")
+                    .unwrap_or(false);
+            if is_screensaver_signal {
                 if let Ok(active) = msg.body().deserialize::<bool>() {
                     self.idle_tx.send(active).ok();
                 }
@@ -61,7 +74,7 @@ impl IdleDetector {
         loop {
             ticker.tick().await;
             let idle_secs = get_idle_seconds().unwrap_or(0);
-            let is_idle = idle_secs >= self.threshold_sec;
+            let is_idle = idle_secs >= self.threshold_sec.load(Ordering::Relaxed);
             if *self.idle_rx.borrow() != is_idle {
                 self.idle_tx.send(is_idle).ok();
             }

@@ -1,4 +1,4 @@
-use chrono::{NaiveDate, NaiveTime, DateTime, Utc};
+use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 
@@ -38,7 +38,10 @@ impl Database {
 
     pub fn get_daily_usage_cents(&self, date: NaiveDate) -> Result<i64, String> {
         let start = date.and_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
-        let end = date.succ_opt().unwrap().and_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+        let end = date
+            .succ_opt()
+            .unwrap()
+            .and_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
         let start_utc = DateTime::<Utc>::from_naive_utc_and_offset(start, Utc);
         let end_utc = DateTime::<Utc>::from_naive_utc_and_offset(end, Utc);
 
@@ -66,10 +69,8 @@ mod tests {
     }
 
     fn make_entry(date: NaiveDate, hour: u32, cost_cents: i64) -> UsageEntry {
-        let dt = DateTime::<Utc>::from_naive_utc_and_offset(
-            date.and_hms_opt(hour, 0, 0).unwrap(),
-            Utc,
-        );
+        let dt =
+            DateTime::<Utc>::from_naive_utc_and_offset(date.and_hms_opt(hour, 0, 0).unwrap(), Utc);
         UsageEntry {
             id: Uuid::new_v4().to_string(),
             occurred_at: dt,

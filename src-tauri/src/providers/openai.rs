@@ -3,7 +3,7 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 
 use crate::domain::capture::CapturedFrame;
-use crate::domain::provider::{VisionProvider, VisionResult, TextProvider};
+use crate::domain::provider::{TextProvider, VisionProvider, VisionResult};
 
 use super::validation::validate_vision_result;
 
@@ -100,7 +100,7 @@ impl OpenAIProvider {
         Self {
             client: reqwest::Client::new(),
             api_key: api_key.to_string(),
-            base_url: "https://api.openai.com".to_string(),
+            base_url: "https://api.openai.com/v1".to_string(),
             vision_model: "gpt-4o".to_string(),
             text_model: "gpt-4o".to_string(),
         }
@@ -121,8 +121,13 @@ impl OpenAIProvider {
         self
     }
 
-    async fn send_chat(&self, model: &str, messages: Vec<ChatMessage<'_>>, max_tokens: u32) -> Result<String, String> {
-        let url = format!("{}/v1/chat/completions", self.base_url);
+    async fn send_chat(
+        &self,
+        model: &str,
+        messages: Vec<ChatMessage<'_>>,
+        max_tokens: u32,
+    ) -> Result<String, String> {
+        let url = format!("{}/chat/completions", self.base_url);
 
         let body = ChatRequest {
             model,
@@ -163,7 +168,7 @@ impl OpenAIProvider {
 impl VisionProvider for OpenAIProvider {
     async fn analyze(&self, frame: &CapturedFrame) -> Result<VisionResult, String> {
         let b64 = base64::engine::general_purpose::STANDARD.encode(&frame.png_data);
-        let data_url = format!("data:image/png;base64,{b64}");
+        let data_url = format!("data:{};base64,{b64}", frame.mime_type);
 
         let messages = vec![
             ChatMessage {

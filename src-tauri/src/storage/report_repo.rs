@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
 use rusqlite::params;
 
-use crate::domain::{PeriodType, Report};
 use super::Database;
+use crate::domain::{PeriodType, Report};
 
 fn row_to_report(row: &rusqlite::Row) -> rusqlite::Result<Report> {
     let period_type_str: String = row.get("period_type")?;
@@ -11,13 +11,17 @@ fn row_to_report(row: &rusqlite::Row) -> rusqlite::Result<Report> {
     let created_at_str: String = row.get("created_at")?;
     let updated_at_str: String = row.get("updated_at")?;
 
-    let period_start = period_start_str.parse::<DateTime<Utc>>()
+    let period_start = period_start_str
+        .parse::<DateTime<Utc>>()
         .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
-    let period_end = period_end_str.parse::<DateTime<Utc>>()
+    let period_end = period_end_str
+        .parse::<DateTime<Utc>>()
         .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
-    let created_at = created_at_str.parse::<DateTime<Utc>>()
+    let created_at = created_at_str
+        .parse::<DateTime<Utc>>()
         .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
-    let updated_at = updated_at_str.parse::<DateTime<Utc>>()
+    let updated_at = updated_at_str
+        .parse::<DateTime<Utc>>()
         .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
 
     Ok(Report {

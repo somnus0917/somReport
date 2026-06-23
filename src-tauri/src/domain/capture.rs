@@ -14,7 +14,9 @@ pub struct CaptureCapabilities {
 pub struct CapturedFrame {
     pub id: String,
     pub captured_at: DateTime<Utc>,
+    /// Encoded image bytes. The historical field name is retained for storage/API compatibility.
     pub png_data: Vec<u8>,
+    pub mime_type: String,
     pub width: u32,
     pub height: u32,
     pub display_index: u32,

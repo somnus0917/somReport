@@ -1,8 +1,8 @@
-use chrono::{NaiveDate, NaiveTime, DateTime, Utc};
+use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
 use rusqlite::params;
 
-use crate::domain::{Activity, Category};
 use super::Database;
+use crate::domain::{Activity, Category};
 
 fn row_to_activity(row: &rusqlite::Row) -> rusqlite::Result<Activity> {
     let started_at_str: String = row.get("started_at")?;
@@ -12,18 +12,24 @@ fn row_to_activity(row: &rusqlite::Row) -> rusqlite::Result<Activity> {
     let category_str: String = row.get("category")?;
     let is_work_related_int: i32 = row.get("is_work_related")?;
 
-    let started_at = started_at_str.parse::<DateTime<Utc>>()
+    let started_at = started_at_str
+        .parse::<DateTime<Utc>>()
         .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
-    let ended_at = ended_at_str.parse::<DateTime<Utc>>()
+    let ended_at = ended_at_str
+        .parse::<DateTime<Utc>>()
         .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
     let edited_at = match edited_at_str {
-        Some(s) => Some(s.parse::<DateTime<Utc>>()
-            .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?),
+        Some(s) => Some(
+            s.parse::<DateTime<Utc>>()
+                .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
+        ),
         None => None,
     };
     let deleted_at = match deleted_at_str {
-        Some(s) => Some(s.parse::<DateTime<Utc>>()
-            .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?),
+        Some(s) => Some(
+            s.parse::<DateTime<Utc>>()
+                .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
+        ),
         None => None,
     };
 
@@ -85,7 +91,10 @@ impl Database {
             .map_err(|e| e.to_string())?;
 
         let activities = stmt
-            .query_map(params![start_utc.to_rfc3339(), end_utc.to_rfc3339()], row_to_activity)
+            .query_map(
+                params![start_utc.to_rfc3339(), end_utc.to_rfc3339()],
+                row_to_activity,
+            )
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
@@ -142,10 +151,12 @@ impl Database {
     pub fn soft_delete_activity(&self, id: &str) -> Result<(), String> {
         let conn = self.conn();
         let now = Utc::now().to_rfc3339();
-        let rows = conn.execute(
-            "UPDATE activities SET deleted_at = ?2 WHERE id = ?1 AND deleted_at IS NULL",
-            params![id, now],
-        ).map_err(|e| e.to_string())?;
+        let rows = conn
+            .execute(
+                "UPDATE activities SET deleted_at = ?2 WHERE id = ?1 AND deleted_at IS NULL",
+                params![id, now],
+            )
+            .map_err(|e| e.to_string())?;
 
         if rows == 0 {
             return Err(format!("activity {} not found or already deleted", id));
@@ -153,7 +164,11 @@ impl Database {
         Ok(())
     }
 
-    pub fn get_activities_in_range(&self, start: NaiveDate, end: NaiveDate) -> Result<Vec<Activity>, String> {
+    pub fn get_activities_in_range(
+        &self,
+        start: NaiveDate,
+        end: NaiveDate,
+    ) -> Result<Vec<Activity>, String> {
         let start_dt = start.and_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
         let end_dt = end.and_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
         let start_utc = DateTime::<Utc>::from_naive_utc_and_offset(start_dt, Utc);
@@ -171,7 +186,10 @@ impl Database {
             .map_err(|e| e.to_string())?;
 
         let activities = stmt
-            .query_map(params![start_utc.to_rfc3339(), end_utc.to_rfc3339()], row_to_activity)
+            .query_map(
+                params![start_utc.to_rfc3339(), end_utc.to_rfc3339()],
+                row_to_activity,
+            )
             .map_err(|e| e.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
@@ -191,10 +209,12 @@ mod tests {
     }
 
     fn insert_job(db: &Database, job_id: &str) {
-        db.conn().execute(
-            "INSERT INTO analysis_jobs (id, captured_at, status) VALUES (?1, ?2, ?3)",
-            params![job_id, Utc::now().to_rfc3339(), "done"],
-        ).unwrap();
+        db.conn()
+            .execute(
+                "INSERT INTO analysis_jobs (id, captured_at, status) VALUES (?1, ?2, ?3)",
+                params![job_id, Utc::now().to_rfc3339(), "done"],
+            )
+            .unwrap();
     }
 
     fn make_activity(job_id: &str, start_hour: u32, end_hour: u32) -> Activity {

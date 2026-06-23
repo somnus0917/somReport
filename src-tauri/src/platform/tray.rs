@@ -1,6 +1,6 @@
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 use crate::pipeline::scheduler::CaptureScheduler;
 use crate::platform::notifications;
@@ -15,7 +15,14 @@ pub fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         scheduler.state() == crate::pipeline::scheduler::RecordingState::Recording
     };
 
-    let toggle = CheckMenuItem::with_id(app, TOGGLE_ID, "Recording", true, is_recording, None::<&str>)?;
+    let toggle = CheckMenuItem::with_id(
+        app,
+        TOGGLE_ID,
+        "Recording",
+        true,
+        is_recording,
+        None::<&str>,
+    )?;
     let open = MenuItem::with_id(app, OPEN_ID, "Open Daytrace", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, QUIT_ID, "Quit", true, None::<&str>)?;
 
@@ -33,9 +40,11 @@ pub fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                         scheduler.state() == crate::pipeline::scheduler::RecordingState::Recording;
                     if was_recording {
                         scheduler.pause();
+                        let _ = app.emit("recording-status", "paused");
                         notifications::notify("Daytrace", "Recording paused");
                     } else {
                         scheduler.start();
+                        let _ = app.emit("recording-status", "recording");
                         notifications::notify("Daytrace", "Recording started");
                     }
                 }

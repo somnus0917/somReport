@@ -24,9 +24,13 @@ pub fn temp_image_dir() -> PathBuf {
 }
 
 pub fn ensure_dirs() -> std::io::Result<()> {
-    fs::create_dir_all(app_data_dir())?;
-    fs::create_dir_all(app_cache_dir())?;
-    let temp = temp_image_dir();
+    ensure_dirs_in(app_data_dir(), app_cache_dir())
+}
+
+fn ensure_dirs_in(data_dir: PathBuf, cache_dir: PathBuf) -> std::io::Result<()> {
+    fs::create_dir_all(data_dir)?;
+    fs::create_dir_all(&cache_dir)?;
+    let temp = cache_dir.join("temp_images");
     fs::create_dir_all(&temp)?;
 
     #[cfg(unix)]
@@ -71,14 +75,16 @@ mod tests {
 
     #[test]
     fn test_ensure_dirs_creates_directories() {
-        let temp = temp_image_dir();
-        let _ = fs::remove_dir_all(&temp);
+        let root = std::env::temp_dir().join(format!("daytrace-paths-{}", uuid::Uuid::new_v4()));
+        let data = root.join("data");
+        let cache = root.join("cache");
+        let temp = cache.join("temp_images");
 
-        ensure_dirs().unwrap();
+        ensure_dirs_in(data.clone(), cache.clone()).unwrap();
 
         assert!(temp.exists());
-        assert!(app_data_dir().exists());
-        assert!(app_cache_dir().exists());
+        assert!(data.exists());
+        assert!(cache.exists());
 
         #[cfg(unix)]
         {
@@ -86,5 +92,7 @@ mod tests {
             let mode = fs::metadata(&temp).unwrap().permissions().mode() & 0o777;
             assert_eq!(mode, 0o700);
         }
+
+        fs::remove_dir_all(root).unwrap();
     }
 }

@@ -1,9 +1,15 @@
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 
+use tauri::{AppHandle, Emitter};
 use tokio::sync::watch;
 
-use crate::domain::{CaptureProvider, VisionProvider};
+use crate::domain::CaptureProvider;
 use crate::pipeline::queue::QueueWorker;
+use crate::providers;
+use crate::storage::Database;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RecordingState {
@@ -12,21 +18,20 @@ pub enum RecordingState {
     Paused,
 }
 
+#[derive(Clone)]
 pub struct CaptureScheduler {
     state_tx: watch::Sender<RecordingState>,
     state_rx: watch::Receiver<RecordingState>,
-    interval_sec: u64,
-    idle_threshold_sec: u64,
+    interval_sec: Arc<AtomicU64>,
 }
 
 impl CaptureScheduler {
-    pub fn new(interval_sec: u64, idle_threshold_sec: u64) -> Self {
+    pub fn new(interval_sec: u64, _idle_threshold_sec: u64) -> Self {
         let (state_tx, state_rx) = watch::channel(RecordingState::Stopped);
         Self {
             state_tx,
             state_rx,
-            interval_sec,
-            idle_threshold_sec,
+            interval_sec: Arc::new(AtomicU64::new(interval_sec.max(5))),
         }
     }
 
@@ -51,65 +56,88 @@ impl CaptureScheduler {
     }
 
     pub fn interval_sec(&self) -> u64 {
-        self.interval_sec
+        self.interval_sec.load(Ordering::Relaxed)
     }
 
-    pub fn idle_threshold_sec(&self) -> u64 {
-        self.idle_threshold_sec
-    }
-
-    pub fn set_interval(&mut self, sec: u64) {
-        self.interval_sec = sec;
+    pub fn set_interval(&self, sec: u64) {
+        self.interval_sec.store(sec.max(5), Ordering::Relaxed);
     }
 
     pub async fn run(
         &self,
+        app: AppHandle,
         capture: Box<dyn CaptureProvider>,
-        vision_provider: Arc<dyn VisionProvider>,
-        model: String,
-        provider_name: String,
         mut queue_worker: QueueWorker,
+        db: Database,
         mut idle_rx: watch::Receiver<bool>,
     ) {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(self.interval_sec));
-        interval.tick().await; // skip the immediate first tick
-
         let mut state_rx = self.state_rx.clone();
 
         loop {
             tokio::select! {
-                _ = interval.tick() => {
-                    let state = *state_rx.borrow_and_update();
-                    if state != RecordingState::Recording {
+                _ = tokio::time::sleep(std::time::Duration::from_secs(self.interval_sec())) => {
+                    if *state_rx.borrow_and_update() != RecordingState::Recording {
                         continue;
                     }
 
-                    let is_idle = *idle_rx.borrow_and_update();
-                    if is_idle {
+                    if *idle_rx.borrow_and_update() {
                         log::debug!("User idle, skipping capture");
                         continue;
                     }
 
-                    let frame = match capture.capture().await {
-                        Ok(f) => f,
-                        Err(e) => {
-                            log::error!("Capture failed: {}", e);
+                    let settings = match db.get_settings() {
+                        Ok(settings) => settings,
+                        Err(error) => {
+                            log::error!("Failed to read settings: {error}");
                             continue;
                         }
                     };
 
-                    match queue_worker.process_frame(&frame, &*vision_provider, &provider_name, &model).await {
+                    match db.get_daily_usage_cents(chrono::Local::now().date_naive()) {
+                        Ok(cost) if cost >= i64::from(settings.max_daily_cost_cents) => {
+                            log::warn!("Daily API budget reached; skipping capture");
+                            continue;
+                        }
+                        Err(error) => log::warn!("Failed to read daily usage: {error}"),
+                        _ => {}
+                    }
+
+                    let frame = match capture.capture().await {
+                        Ok(frame) => frame,
+                        Err(error) => {
+                            log::error!("Capture failed: {error}");
+                            continue;
+                        }
+                    };
+
+                    let provider = match providers::create_vision_provider(&settings.vision_provider) {
+                        Ok(provider) => provider,
+                        Err(error) => {
+                            log::error!("Vision provider is unavailable: {error}");
+                            continue;
+                        }
+                    };
+
+                    match queue_worker.process_frame(
+                        &frame,
+                        &*provider,
+                        &settings.vision_provider.name,
+                        &settings.vision_provider.model,
+                        self.interval_sec(),
+                    ).await {
                         Ok(activities) => {
-                            log::info!("Processed frame {}: {} activities", frame.id, activities.len());
+                            for activity in activities {
+                                let _ = app.emit("activity-created", activity);
+                            }
                         }
-                        Err(e) => {
-                            log::error!("Frame processing failed: {}", e);
-                        }
+                        Err(error) => log::error!("Frame processing failed: {error}"),
                     }
                 }
-                _ = state_rx.changed() => {
-                    let new_state = *state_rx.borrow_and_update();
-                    log::info!("Recording state changed to {:?}", new_state);
+                changed = state_rx.changed() => {
+                    if changed.is_err() {
+                        break;
+                    }
+                    log::info!("Recording state changed to {:?}", *state_rx.borrow_and_update());
                 }
             }
         }
@@ -122,83 +150,27 @@ mod tests {
 
     #[test]
     fn initial_state_is_stopped() {
-        let s = CaptureScheduler::new(5, 60);
-        assert_eq!(s.state(), RecordingState::Stopped);
+        let scheduler = CaptureScheduler::new(5, 60);
+        assert_eq!(scheduler.state(), RecordingState::Stopped);
     }
 
     #[test]
-    fn start_transitions_to_recording() {
-        let s = CaptureScheduler::new(5, 60);
-        s.start();
-        assert_eq!(s.state(), RecordingState::Recording);
+    fn state_transitions_are_observable() {
+        let scheduler = CaptureScheduler::new(5, 60);
+        let mut receiver = scheduler.state_rx();
+        scheduler.start();
+        assert_eq!(*receiver.borrow_and_update(), RecordingState::Recording);
+        scheduler.pause();
+        assert_eq!(*receiver.borrow_and_update(), RecordingState::Paused);
+        scheduler.stop();
+        assert_eq!(*receiver.borrow_and_update(), RecordingState::Stopped);
     }
 
     #[test]
-    fn pause_transitions_to_paused() {
-        let s = CaptureScheduler::new(5, 60);
-        s.start();
-        s.pause();
-        assert_eq!(s.state(), RecordingState::Paused);
-    }
-
-    #[test]
-    fn stop_transitions_to_stopped() {
-        let s = CaptureScheduler::new(5, 60);
-        s.start();
-        s.stop();
-        assert_eq!(s.state(), RecordingState::Stopped);
-    }
-
-    #[test]
-    fn stop_from_paused() {
-        let s = CaptureScheduler::new(5, 60);
-        s.start();
-        s.pause();
-        s.stop();
-        assert_eq!(s.state(), RecordingState::Stopped);
-    }
-
-    #[test]
-    fn start_from_paused_resumes() {
-        let s = CaptureScheduler::new(5, 60);
-        s.start();
-        s.pause();
-        s.start();
-        assert_eq!(s.state(), RecordingState::Recording);
-    }
-
-    #[test]
-    fn state_rx_receives_updates() {
-        let s = CaptureScheduler::new(5, 60);
-        let mut rx = s.state_rx();
-        assert_eq!(*rx.borrow_and_update(), RecordingState::Stopped);
-
-        s.start();
-        assert_eq!(*rx.borrow_and_update(), RecordingState::Recording);
-
-        s.pause();
-        assert_eq!(*rx.borrow_and_update(), RecordingState::Paused);
-
-        s.stop();
-        assert_eq!(*rx.borrow_and_update(), RecordingState::Stopped);
-    }
-
-    #[test]
-    fn interval_sec_returns_configured_value() {
-        let s = CaptureScheduler::new(10, 120);
-        assert_eq!(s.interval_sec(), 10);
-    }
-
-    #[test]
-    fn idle_threshold_sec_returns_configured_value() {
-        let s = CaptureScheduler::new(5, 90);
-        assert_eq!(s.idle_threshold_sec(), 90);
-    }
-
-    #[test]
-    fn set_interval_updates_value() {
-        let mut s = CaptureScheduler::new(5, 60);
-        s.set_interval(15);
-        assert_eq!(s.interval_sec(), 15);
+    fn interval_is_clamped_and_can_be_updated() {
+        let scheduler = CaptureScheduler::new(1, 60);
+        assert_eq!(scheduler.interval_sec(), 5);
+        scheduler.set_interval(15);
+        assert_eq!(scheduler.interval_sec(), 15);
     }
 }

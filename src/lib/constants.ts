@@ -28,6 +28,7 @@ export const TEMPLATES = [
 
 export const PROVIDERS = [
   { id: 'openai', label: 'OpenAI' },
+  { id: 'qwen', label: 'Qwen (DashScope)' },
   { id: 'anthropic', label: 'Anthropic' },
 ];
 

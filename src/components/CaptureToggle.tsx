@@ -1,13 +1,16 @@
 import { useRecordingStore } from '../stores/recording';
 
 export default function CaptureToggle() {
-  const { recordingState, start, pause, stop } = useRecordingStore();
+  const { recordingState, start, pause, stop, error } = useRecordingStore();
 
   if (recordingState === 'stopped') {
     return (
-      <button className="capture-btn capture-start" onClick={start}>
-        Start
-      </button>
+      <div>
+        <button className="capture-btn capture-start" onClick={start}>
+          Start
+        </button>
+        {error && <p className="capture-error">{error}</p>}
+      </div>
     );
   }
 

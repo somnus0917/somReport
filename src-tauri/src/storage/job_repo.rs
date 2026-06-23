@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
 use rusqlite::params;
 
-use crate::domain::{AnalysisJob, JobStatus};
 use super::Database;
+use crate::domain::{AnalysisJob, JobStatus};
 
 fn row_to_job(row: &rusqlite::Row) -> rusqlite::Result<AnalysisJob> {
     let captured_at_str: String = row.get("captured_at")?;
@@ -10,13 +10,17 @@ fn row_to_job(row: &rusqlite::Row) -> rusqlite::Result<AnalysisJob> {
     let created_at_str: String = row.get("created_at")?;
     let finished_at_str: Option<String> = row.get("finished_at")?;
 
-    let captured_at = captured_at_str.parse::<DateTime<Utc>>()
+    let captured_at = captured_at_str
+        .parse::<DateTime<Utc>>()
         .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
-    let created_at = created_at_str.parse::<DateTime<Utc>>()
+    let created_at = created_at_str
+        .parse::<DateTime<Utc>>()
         .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
     let finished_at = match finished_at_str {
-        Some(s) => Some(s.parse::<DateTime<Utc>>()
-            .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?),
+        Some(s) => Some(
+            s.parse::<DateTime<Utc>>()
+                .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
+        ),
         None => None,
     };
 
@@ -70,8 +74,7 @@ impl Database {
                 )
                 .map_err(|e| e.to_string())?;
 
-            let mut rows = stmt.query_map([], row_to_job)
-                .map_err(|e| e.to_string())?;
+            let mut rows = stmt.query_map([], row_to_job).map_err(|e| e.to_string())?;
 
             match rows.next() {
                 Some(row) => Some(row.map_err(|e| e.to_string())?),
@@ -86,7 +89,8 @@ impl Database {
         conn.execute(
             "UPDATE analysis_jobs SET status = 'processing', attempts = attempts + 1 WHERE id = ?1",
             params![job.id],
-        ).map_err(|e| e.to_string())?;
+        )
+        .map_err(|e| e.to_string())?;
 
         job.status = JobStatus::Processing;
         job.attempts += 1;
@@ -202,7 +206,12 @@ mod tests {
         db.complete_job(&job.id, "openai", "gpt-4o").unwrap();
 
         let conn = db.conn();
-        let (status, provider, model, finished_at): (String, Option<String>, Option<String>, Option<String>) = conn
+        let (status, provider, model, finished_at): (
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+        ) = conn
             .query_row(
                 "SELECT status, provider, model, finished_at FROM analysis_jobs WHERE id = ?1",
                 params![job.id],
