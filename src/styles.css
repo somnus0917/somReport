@@ -306,3 +306,137 @@ body {
 .page-placeholder {
   color: #6b7280;
 }
+
+/* Settings page */
+.settings-page {
+  max-width: 800px;
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #2a2a3e;
+}
+
+.settings-header h2 {
+  margin: 0;
+}
+
+.settings-section {
+  margin-bottom: 2rem;
+}
+
+.settings-section > h3 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9ca3af;
+  margin: 0 0 0.75rem;
+}
+
+.settings-card {
+  background: #1a1a2e;
+  border: 1px solid #2a2a3e;
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.settings-card h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+}
+
+.settings-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.settings-card input[type="text"],
+.settings-card input[type="number"],
+.settings-card input[type="password"],
+.settings-card select {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #3a3a5e;
+  border-radius: 4px;
+  background: #0f0f1a;
+  color: #f6f6f6;
+  font-size: 0.85rem;
+}
+
+.settings-card input:focus,
+.settings-card select:focus {
+  outline: none;
+  border-color: #4f46e5;
+}
+
+.settings-provider-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.settings-key-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.settings-key-label {
+  flex: 1;
+}
+
+.settings-key-input-group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+
+.settings-key-input-group input {
+  flex: 1;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #3a3a5e;
+  border-radius: 4px;
+  background: #0f0f1a;
+  color: #f6f6f6;
+  font-size: 0.85rem;
+}
+
+.settings-key-hint {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.settings-hint {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.settings-danger-card {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.settings-danger-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.settings-danger-row p {
+  margin: 0.25rem 0 0;
+}
+
+.settings-danger-confirm {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
