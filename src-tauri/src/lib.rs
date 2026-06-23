@@ -40,6 +40,9 @@ pub fn run() {
                 let window = app.get_webview_window("main").unwrap();
                 window.open_devtools();
             }
+
+            platform::tray::create_tray(app)?;
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
