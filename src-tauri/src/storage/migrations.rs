@@ -1,7 +1,12 @@
 use rusqlite::Connection;
 
-const MIGRATIONS: &[(&str, &str)] =
-    &[("001_initial", include_str!("../migrations/001_initial.sql"))];
+const MIGRATIONS: &[(&str, &str)] = &[
+    ("001_initial", include_str!("../migrations/001_initial.sql")),
+    (
+        "002_fix_usage_cost_type",
+        include_str!("../migrations/002_fix_usage_cost_type.sql"),
+    ),
+];
 
 pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
@@ -76,6 +81,6 @@ mod tests {
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 1);
+        assert_eq!(count, 2);
     }
 }

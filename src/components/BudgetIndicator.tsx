@@ -8,7 +8,7 @@ interface Props {
 function formatEstimatedCost(cents: number) {
   if (cents === 0) return '0 分';
   if (cents < 1) return `${cents.toFixed(4)} 分`;
-  return `${(cents / 100).toFixed(4)}（${cents.toFixed(2)} 分）`;
+  return `${(cents / 100).toFixed(2)} 元（${cents.toFixed(2)} 分）`;
 }
 
 export default function BudgetIndicator({ stats, usage }: Props) {

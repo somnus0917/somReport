@@ -13,9 +13,9 @@ pub fn export_markdown(
     let mut md = String::new();
 
     let period_label = match period_type {
-        PeriodType::Daily => format!("Daily Report – {}", period_start),
-        PeriodType::Weekly => format!("Weekly Report – {}", period_start),
-        PeriodType::Custom => format!("Report – {}", period_start),
+        PeriodType::Daily => format!("日报 – {}", period_start),
+        PeriodType::Weekly => format!("周报 – {}", period_start),
+        PeriodType::Custom => format!("报告 – {}", period_start),
     };
 
     md.push_str(&format!("# {}\n\n", period_label));
@@ -92,7 +92,7 @@ mod tests {
         let date = NaiveDate::from_ymd_opt(2025, 6, 15).unwrap();
         let md = export_markdown(&report, &PeriodType::Daily, date, None);
 
-        assert!(md.contains("# Daily Report"));
+        assert!(md.contains("# 日报"));
         assert!(md.contains("## development"));
         assert!(md.contains("Coding"));
         assert!(md.contains("Rust backend"));

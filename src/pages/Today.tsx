@@ -23,6 +23,11 @@ export default function Today() {
 
   return (
     <div className="today-page">
+      <header className="page-header">
+        <p className="page-kicker">daily overview</p>
+        <h2>今日</h2>
+        <p>实时追踪工作活动，AI 自动分析截图内容。</p>
+      </header>
       <header className="today-header">
         <div className="today-header-left">
           <CaptureToggle />

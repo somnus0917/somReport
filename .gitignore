@@ -23,5 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
+# AI tools
+.claude/
+.codex/
+
 # Rust
 src-tauri/target/

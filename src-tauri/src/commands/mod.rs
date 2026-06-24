@@ -146,9 +146,9 @@ pub async fn generate_report(
     };
 
     let title = match pt {
-        PeriodType::Daily => format!("Daily Report – {}", start_date),
-        PeriodType::Weekly => format!("Weekly Report – {} to {}", start_date, end_date),
-        PeriodType::Custom => format!("Report – {} to {}", start_date, end_date),
+        PeriodType::Daily => format!("日报 – {}", start_date),
+        PeriodType::Weekly => format!("周报 – {} 至 {}", start_date, end_date),
+        PeriodType::Custom => format!("报告 – {} 至 {}", start_date, end_date),
     };
 
     let now = Utc::now();
