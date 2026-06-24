@@ -1,7 +1,7 @@
 {
-  "productName": "daytrace",
+  "productName": "somReport",
   "version": "0.1.0",
-  "identifier": "com.daytrace.app",
+  "identifier": "com.somnus.somreport",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -11,11 +11,24 @@
   "app": {
     "windows": [
       {
-        "title": "Daytrace",
+        "label": "main",
+        "title": "日报助手",
         "width": 1024,
         "height": 768,
         "resizable": true,
         "fullscreen": false
+      },
+      {
+        "label": "float",
+        "title": "日报助手",
+        "width": 316,
+        "height": 132,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": true
       }
     ],
     "security": {

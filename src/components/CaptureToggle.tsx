@@ -7,7 +7,7 @@ export default function CaptureToggle() {
     return (
       <div>
         <button className="capture-btn capture-start" onClick={start}>
-          Start
+          开始
         </button>
         {error && <p className="capture-error">{error}</p>}
       </div>
@@ -18,15 +18,15 @@ export default function CaptureToggle() {
     <div className="capture-group">
       {recordingState === 'recording' ? (
         <button className="capture-btn capture-pause" onClick={pause}>
-          Pause
+          暂停
         </button>
       ) : (
         <button className="capture-btn capture-start" onClick={start}>
-          Resume
+          继续
         </button>
       )}
       <button className="capture-btn capture-stop" onClick={stop}>
-        Stop
+        停止
       </button>
     </div>
   );

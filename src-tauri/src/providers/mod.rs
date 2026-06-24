@@ -7,32 +7,19 @@ use std::sync::Arc;
 use crate::domain::{ProviderConfig, TextProvider, VisionProvider};
 
 pub fn resolve_api_key(config: &ProviderConfig) -> Result<String, String> {
-    if let Some(key) = config
-        .api_key
-        .as_deref()
-        .filter(|key| !key.trim().is_empty())
-    {
-        return Ok(key.to_string());
-    }
-
-    if let Ok(entry) = keyring::Entry::new("daytrace", &config.name) {
-        if let Ok(key) = entry.get_password() {
-            if !key.trim().is_empty() {
-                return Ok(key);
-            }
-        }
-    }
-
+    // Credentials are intentionally supplied only through the process environment.
     if let Some(variable) = &config.api_key_env_var {
+        log::info!("Trying env var {} for {}", variable, config.name);
         if let Ok(key) = std::env::var(variable) {
             if !key.trim().is_empty() {
+                log::info!("Found key in env var {} for {}", variable, config.name);
                 return Ok(key);
             }
         }
     }
 
     Err(format!(
-        "No API key configured for {}. Save one in Settings or set {}.",
+        "No API key configured for {}. Set {} before launching the app.",
         config.name,
         config
             .api_key_env_var

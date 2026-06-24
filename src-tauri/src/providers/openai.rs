@@ -3,7 +3,9 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 
 use crate::domain::capture::CapturedFrame;
-use crate::domain::provider::{TextProvider, VisionProvider, VisionResult};
+use crate::domain::provider::{
+    ProviderResponse, TextProvider, TokenUsage, VisionProvider, VisionResult,
+};
 
 use super::validation::validate_vision_result;
 
@@ -75,6 +77,13 @@ struct ChatRequest<'a> {
 #[derive(Debug, Deserialize)]
 struct ChatResponse {
     choices: Vec<ChatChoice>,
+    usage: Option<ChatUsage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ChatUsage {
+    prompt_tokens: Option<i64>,
+    completion_tokens: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -126,7 +135,7 @@ impl OpenAIProvider {
         model: &str,
         messages: Vec<ChatMessage<'_>>,
         max_tokens: u32,
-    ) -> Result<String, String> {
+    ) -> Result<ProviderResponse<String>, String> {
         let url = format!("{}/chat/completions", self.base_url);
 
         let body = ChatRequest {
@@ -157,16 +166,31 @@ impl OpenAIProvider {
             .await
             .map_err(|e| format!("Failed to parse response: {e}"))?;
 
-        chat.choices
+        let content = chat
+            .choices
             .first()
             .and_then(|c| c.message.content.clone())
-            .ok_or_else(|| "No content in response".to_string())
+            .ok_or_else(|| "No content in response".to_string())?;
+        let usage = chat.usage.unwrap_or(ChatUsage {
+            prompt_tokens: None,
+            completion_tokens: None,
+        });
+        Ok(ProviderResponse {
+            value: content,
+            usage: TokenUsage {
+                input_tokens: usage.prompt_tokens.unwrap_or_default(),
+                output_tokens: usage.completion_tokens.unwrap_or_default(),
+            },
+        })
     }
 }
 
 #[async_trait]
 impl VisionProvider for OpenAIProvider {
-    async fn analyze(&self, frame: &CapturedFrame) -> Result<VisionResult, String> {
+    async fn analyze(
+        &self,
+        frame: &CapturedFrame,
+    ) -> Result<ProviderResponse<VisionResult>, String> {
         let b64 = base64::engine::general_purpose::STANDARD.encode(&frame.png_data);
         let data_url = format!("data:{};base64,{b64}", frame.mime_type);
 
@@ -195,14 +219,17 @@ impl VisionProvider for OpenAIProvider {
             },
         ];
 
-        let content = self.send_chat(&self.vision_model, messages, 1024).await?;
-        validate_vision_result(&content)
+        let response = self.send_chat(&self.vision_model, messages, 1024).await?;
+        Ok(ProviderResponse {
+            value: validate_vision_result(&response.value)?,
+            usage: response.usage,
+        })
     }
 }
 
 #[async_trait]
 impl TextProvider for OpenAIProvider {
-    async fn generate(&self, prompt: &str) -> Result<String, String> {
+    async fn generate(&self, prompt: &str) -> Result<ProviderResponse<String>, String> {
         let messages = vec![
             ChatMessage {
                 role: "system",

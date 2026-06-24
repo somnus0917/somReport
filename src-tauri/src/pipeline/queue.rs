@@ -9,6 +9,7 @@ use crate::domain::{
 };
 use crate::pipeline::dedup::DedupChecker;
 use crate::pipeline::retry::{with_retry, RetryConfig};
+use crate::storage::usage_repo::UsageEntry;
 use crate::storage::Database;
 
 pub struct QueueWorker {
@@ -30,6 +31,8 @@ impl QueueWorker {
         provider: &dyn VisionProvider,
         provider_name: &str,
         model_name: &str,
+        input_cost_per_million_cents: f64,
+        output_cost_per_million_cents: f64,
         activity_window_secs: u64,
     ) -> Result<Vec<Activity>, String> {
         let is_dup = self.dedup.check_and_update(&frame.png_data)?;
@@ -58,12 +61,28 @@ impl QueueWorker {
         let vision_result = with_retry(&retry_config, || provider.analyze(frame)).await;
 
         match vision_result {
-            Ok(result) => {
-                let activities = self.create_activities(&job, frame, &result, activity_window_secs);
+            Ok(response) => {
+                let activities =
+                    self.create_activities(&job, frame, &response.value, activity_window_secs);
                 for activity in &activities {
                     self.db.insert_activity(activity)?;
                 }
                 self.db.complete_job(&job.id, provider_name, model_name)?;
+                self.db.record_usage(&UsageEntry {
+                    id: Uuid::new_v4().to_string(),
+                    occurred_at: Utc::now(),
+                    provider: provider_name.to_string(),
+                    model: model_name.to_string(),
+                    input_tokens: response.usage.input_tokens,
+                    output_tokens: response.usage.output_tokens,
+                    estimated_cost_cents: estimate_cost_cents(
+                        response.usage.input_tokens,
+                        response.usage.output_tokens,
+                        input_cost_per_million_cents,
+                        output_cost_per_million_cents,
+                    ),
+                    job_id: Some(job.id.clone()),
+                })?;
                 Ok(activities)
             }
             Err(e) => {
@@ -111,6 +130,17 @@ impl QueueWorker {
             })
             .collect()
     }
+}
+
+fn estimate_cost_cents(
+    input_tokens: i64,
+    output_tokens: i64,
+    input_cost_per_million_cents: f64,
+    output_cost_per_million_cents: f64,
+) -> f64 {
+    (input_tokens as f64 * input_cost_per_million_cents
+        + output_tokens as f64 * output_cost_per_million_cents)
+        / 1_000_000.0
 }
 
 fn compute_md5(data: &[u8]) -> String {
@@ -196,5 +226,11 @@ mod tests {
             captured_at - chrono::Duration::seconds(30)
         );
         assert_eq!(activities[1].ended_at, captured_at);
+    }
+
+    #[test]
+    fn cost_estimation_preserves_fractional_cents() {
+        let cost = estimate_cost_cents(1_000, 500, 15.0, 60.0);
+        assert!((cost - 0.045).abs() < f64::EPSILON);
     }
 }

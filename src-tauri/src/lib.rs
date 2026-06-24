@@ -25,6 +25,9 @@ pub fn run() {
 
             let db = storage::Database::new(&db_path).expect("failed to open database");
             let settings = db.get_settings().unwrap_or_default();
+            if let Err(error) = db.purge_records_older_than(settings.data_retention_days) {
+                log::warn!("Failed to apply data retention policy: {error}");
+            }
             app.manage(db.clone());
 
             let scheduler = pipeline::scheduler::CaptureScheduler::new(
@@ -81,12 +84,15 @@ pub fn run() {
             commands::pause_recording,
             commands::stop_recording,
             commands::get_recording_state,
-            commands::save_provider_key,
-            commands::test_provider_key,
+            commands::show_main_window,
             commands::get_settings,
             commands::save_settings,
             commands::clear_all_data,
+            commands::cleanup_local_storage,
             commands::get_daily_usage,
+            commands::test_model_connection,
+            commands::save_model_config,
+            commands::save_and_test_model,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

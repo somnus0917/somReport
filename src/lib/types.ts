@@ -46,12 +46,19 @@ export interface TodayStats {
   activity_count: number;
 }
 
+export interface DailyUsage {
+  input_tokens: number;
+  output_tokens: number;
+  estimated_cost_cents: number;
+}
+
 export interface ProviderConfig {
   name: string;
   api_key_env_var: string | null;
-  api_key: string | null;
   api_url: string;
   model: string;
+  input_cost_per_million_cents: number;
+  output_cost_per_million_cents: number;
 }
 
 export interface AppSettings {
@@ -62,6 +69,15 @@ export interface AppSettings {
   max_daily_cost_cents: number;
   auto_start: boolean;
   notify_on_report: boolean;
+  data_retention_days: number;
+  vision_connection: ModelConnectionStatus;
+  text_connection: ModelConnectionStatus;
+}
+
+export interface ModelConnectionStatus {
+  success: boolean | null;
+  tested_at: string | null;
+  message: string | null;
 }
 
 export interface UpdateActivityRequest {

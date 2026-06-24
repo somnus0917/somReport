@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { generateReport, listReports } from '../api/tauri';
 import { TEMPLATES } from '../lib/constants';
 import type { Report } from '../lib/types';
+import { LoadingState, ErrorState, EmptyState } from '../components/StateViews';
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -78,17 +79,17 @@ export default function Reports() {
       <div className="reports-left">
         <div className="reports-form">
           <label>
-            Period
+            周期
             <select
               value={periodType}
               onChange={(e) => setPeriodType(e.target.value as 'daily' | 'weekly')}
             >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
+              <option value="daily">日报</option>
+              <option value="weekly">周报</option>
             </select>
           </label>
           <label>
-            Date
+            日期
             <input
               type="date"
               value={periodStart}
@@ -96,7 +97,7 @@ export default function Reports() {
             />
           </label>
           <label>
-            Template
+            模板
             <select value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
               {TEMPLATES.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -110,18 +111,19 @@ export default function Reports() {
             disabled={generateMutation.isPending}
             onClick={() => generateMutation.mutate()}
           >
-            {generateMutation.isPending ? 'Generating…' : 'Generate Report'}
+            {generateMutation.isPending ? '生成中…' : '生成报告'}
           </button>
           {generateMutation.isError && (
-            <p className="reports-error">Failed to generate report.</p>
+            <p className="reports-error">报告生成失败。</p>
           )}
         </div>
 
         <div className="reports-history">
-          <h3>History</h3>
-          {reportsQuery.isLoading && <p className="reports-empty">Loading…</p>}
-          {!reportsQuery.isLoading && reports.length === 0 && (
-            <p className="reports-empty">No reports yet.</p>
+          <h3>历史记录</h3>
+          {reportsQuery.isLoading && <LoadingState message="加载报告列表..." />}
+          {reportsQuery.isError && <ErrorState message="加载失败" onRetry={() => reportsQuery.refetch()} />}
+          {!reportsQuery.isLoading && !reportsQuery.isError && reports.length === 0 && (
+            <EmptyState message="暂无报告" />
           )}
           <ul className="reports-history-list">
             {reports.map((r) => (
@@ -147,10 +149,10 @@ export default function Reports() {
               <h3>{selectedReport.title}</h3>
               <div className="reports-preview-actions">
                 <button className="btn-sm" onClick={handleCopy}>
-                  {copied ? 'Copied!' : 'Copy'}
+                  {copied ? '已复制！' : '复制'}
                 </button>
                 <button className="btn-sm" onClick={handleExport}>
-                  Export .md
+                  导出 .md
                 </button>
               </div>
             </div>
@@ -158,7 +160,7 @@ export default function Reports() {
           </>
         ) : (
           <div className="reports-empty-preview">
-            <p>Select a report or generate a new one.</p>
+            <p>选择一份报告或生成新报告。</p>
           </div>
         )}
       </div>

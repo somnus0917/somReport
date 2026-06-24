@@ -6,7 +6,7 @@ use crate::pipeline::scheduler::CaptureScheduler;
 use crate::platform::notifications;
 
 const TOGGLE_ID: &str = "toggle_recording";
-const OPEN_ID: &str = "open_daytrace";
+const OPEN_ID: &str = "open_som_report";
 const QUIT_ID: &str = "quit";
 
 pub fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -23,14 +23,14 @@ pub fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         is_recording,
         None::<&str>,
     )?;
-    let open = MenuItem::with_id(app, OPEN_ID, "Open Daytrace", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, QUIT_ID, "Quit", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, OPEN_ID, "打开日报助手", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, QUIT_ID, "退出", true, None::<&str>)?;
 
     let menu = Menu::with_items(app, &[&toggle, &open, &quit])?;
 
     TrayIconBuilder::new()
         .menu(&menu)
-        .tooltip("Daytrace")
+        .tooltip("日报助手")
         .on_menu_event(move |app, event| {
             let id = event.id().as_ref();
             match id {
@@ -41,11 +41,11 @@ pub fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     if was_recording {
                         scheduler.pause();
                         let _ = app.emit("recording-status", "paused");
-                        notifications::notify("Daytrace", "Recording paused");
+                        notifications::notify("日报助手", "录制已暂停");
                     } else {
                         scheduler.start();
                         let _ = app.emit("recording-status", "recording");
-                        notifications::notify("Daytrace", "Recording started");
+                        notifications::notify("日报助手", "录制已开始");
                     }
                 }
                 OPEN_ID => {

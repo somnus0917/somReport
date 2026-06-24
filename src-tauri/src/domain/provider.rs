@@ -19,12 +19,27 @@ pub struct VisionResult {
     pub items: Vec<VisionItem>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TokenUsage {
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProviderResponse<T> {
+    pub value: T,
+    pub usage: TokenUsage,
+}
+
 #[async_trait]
 pub trait VisionProvider: Send + Sync {
-    async fn analyze(&self, frame: &CapturedFrame) -> Result<VisionResult, String>;
+    async fn analyze(
+        &self,
+        frame: &CapturedFrame,
+    ) -> Result<ProviderResponse<VisionResult>, String>;
 }
 
 #[async_trait]
 pub trait TextProvider: Send + Sync {
-    async fn generate(&self, prompt: &str) -> Result<String, String>;
+    async fn generate(&self, prompt: &str) -> Result<ProviderResponse<String>, String>;
 }

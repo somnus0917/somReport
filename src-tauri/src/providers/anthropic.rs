@@ -3,7 +3,9 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 
 use crate::domain::capture::CapturedFrame;
-use crate::domain::provider::{TextProvider, VisionProvider, VisionResult};
+use crate::domain::provider::{
+    ProviderResponse, TextProvider, TokenUsage, VisionProvider, VisionResult,
+};
 
 use super::validation::validate_vision_result;
 
@@ -71,6 +73,13 @@ struct MessagesRequest<'a> {
 #[derive(Debug, Deserialize)]
 struct MessagesResponse {
     content: Vec<ResponseContentBlock>,
+    usage: Option<MessageUsage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MessageUsage {
+    input_tokens: Option<i64>,
+    output_tokens: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -120,7 +129,7 @@ impl AnthropicProvider {
         system: Option<&str>,
         messages: Vec<Message<'_>>,
         max_tokens: u32,
-    ) -> Result<String, String> {
+    ) -> Result<ProviderResponse<String>, String> {
         let url = format!("{}/v1/messages", self.base_url);
 
         let body = MessagesRequest {
@@ -152,17 +161,32 @@ impl AnthropicProvider {
             .await
             .map_err(|e| format!("Failed to parse response: {e}"))?;
 
-        msg.content
+        let content = msg
+            .content
             .iter()
             .find(|b| b.block_type.as_deref() == Some("text"))
             .and_then(|b| b.text.clone())
-            .ok_or_else(|| "No text content in response".to_string())
+            .ok_or_else(|| "No text content in response".to_string())?;
+        let usage = msg.usage.unwrap_or(MessageUsage {
+            input_tokens: None,
+            output_tokens: None,
+        });
+        Ok(ProviderResponse {
+            value: content,
+            usage: TokenUsage {
+                input_tokens: usage.input_tokens.unwrap_or_default(),
+                output_tokens: usage.output_tokens.unwrap_or_default(),
+            },
+        })
     }
 }
 
 #[async_trait]
 impl VisionProvider for AnthropicProvider {
-    async fn analyze(&self, frame: &CapturedFrame) -> Result<VisionResult, String> {
+    async fn analyze(
+        &self,
+        frame: &CapturedFrame,
+    ) -> Result<ProviderResponse<VisionResult>, String> {
         let b64 = base64::engine::general_purpose::STANDARD.encode(&frame.png_data);
 
         let messages = vec![Message {
@@ -185,7 +209,7 @@ impl VisionProvider for AnthropicProvider {
             ],
         }];
 
-        let content = self
+        let response = self
             .send_message(
                 &self.vision_model,
                 Some(VISION_SYSTEM_PROMPT),
@@ -193,13 +217,16 @@ impl VisionProvider for AnthropicProvider {
                 1024,
             )
             .await?;
-        validate_vision_result(&content)
+        Ok(ProviderResponse {
+            value: validate_vision_result(&response.value)?,
+            usage: response.usage,
+        })
     }
 }
 
 #[async_trait]
 impl TextProvider for AnthropicProvider {
-    async fn generate(&self, prompt: &str) -> Result<String, String> {
+    async fn generate(&self, prompt: &str) -> Result<ProviderResponse<String>, String> {
         let messages = vec![Message {
             role: "user",
             content: vec![ContentBlock {

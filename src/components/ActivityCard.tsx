@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Activity, Category } from '../lib/types';
 import { CATEGORIES, CATEGORY_COLORS } from '../lib/constants';
-import { useRecordingStore } from '../stores/recording';
+import { useUpdateActivity, useDeleteActivity } from '../hooks/useRecording';
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -10,10 +10,10 @@ function formatTime(iso: string): string {
 function formatDuration(start: string, end: string): string {
   const ms = new Date(end).getTime() - new Date(start).getTime();
   const mins = Math.round(ms / 60000);
-  if (mins < 60) return `${mins}m`;
+  if (mins < 60) return `${mins}分钟`;
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  return m ? `${h}h ${m}m` : `${h}h`;
+  return m ? `${h}小时 ${m}分钟` : `${h}小时`;
 }
 
 interface Props {
@@ -21,13 +21,14 @@ interface Props {
 }
 
 export default function ActivityCard({ activity }: Props) {
-  const { updateActivityItem, deleteActivityItem } = useRecordingStore();
+  const updateMutation = useUpdateActivity();
+  const deleteMutation = useDeleteActivity();
   const [editing, setEditing] = useState(false);
   const [summary, setSummary] = useState(activity.summary);
   const [category, setCategory] = useState(activity.category);
 
   const save = async () => {
-    await updateActivityItem({
+    await updateMutation.mutateAsync({
       id: activity.id,
       summary,
       category,
@@ -36,7 +37,7 @@ export default function ActivityCard({ activity }: Props) {
   };
 
   const toggleWork = async () => {
-    await updateActivityItem({
+    await updateMutation.mutateAsync({
       id: activity.id,
       is_work_related: !activity.is_work_related,
     });
@@ -79,8 +80,8 @@ export default function ActivityCard({ activity }: Props) {
             ))}
           </select>
           <div className="activity-edit-actions">
-            <button onClick={save} className="btn-sm btn-primary">Save</button>
-            <button onClick={() => { setEditing(false); setSummary(activity.summary); setCategory(activity.category); }} className="btn-sm">Cancel</button>
+            <button onClick={save} className="btn-sm btn-primary">保存</button>
+            <button onClick={() => { setEditing(false); setSummary(activity.summary); setCategory(activity.category); }} className="btn-sm">取消</button>
           </div>
         </div>
       ) : (
@@ -88,12 +89,12 @@ export default function ActivityCard({ activity }: Props) {
       )}
 
       <div className="activity-actions">
-        <button onClick={() => setEditing(true)} className="btn-sm">Edit</button>
+        <button onClick={() => setEditing(true)} className="btn-sm">编辑</button>
         <button onClick={toggleWork} className="btn-sm">
-          {activity.is_work_related ? 'Mark Non-Work' : 'Mark Work'}
+          {activity.is_work_related ? '标记为非工作' : '标记为工作'}
         </button>
-        <button onClick={() => deleteActivityItem(activity.id)} className="btn-sm btn-danger">
-          Delete
+        <button onClick={() => deleteMutation.mutate(activity.id)} className="btn-sm btn-danger">
+          删除
         </button>
       </div>
     </div>

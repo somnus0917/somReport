@@ -1,13 +1,13 @@
-import type { AppSettings, Category } from './types';
+import type { AppSettings, Category, ProviderConfig } from './types';
 
 export const CATEGORIES: { value: Category; label: string }[] = [
-  { value: 'development', label: 'Development' },
-  { value: 'meeting', label: 'Meeting' },
-  { value: 'communication', label: 'Communication' },
-  { value: 'documentation', label: 'Documentation' },
-  { value: 'research', label: 'Research' },
-  { value: 'design', label: 'Design' },
-  { value: 'other', label: 'Other' },
+  { value: 'development', label: '开发' },
+  { value: 'meeting', label: '会议' },
+  { value: 'communication', label: '沟通' },
+  { value: 'documentation', label: '文档' },
+  { value: 'research', label: '调研' },
+  { value: 'design', label: '设计' },
+  { value: 'other', label: '其他' },
 ];
 
 export const CATEGORY_COLORS: Record<Category, string> = {
@@ -21,35 +21,79 @@ export const CATEGORY_COLORS: Record<Category, string> = {
 };
 
 export const TEMPLATES = [
-  { id: 'default', label: 'Default', description: 'Concise daily report grouped by category' },
-  { id: 'detailed', label: 'Detailed', description: 'Full breakdown with confidence scores' },
-  { id: 'executive', label: 'Executive', description: 'Brief high-level summary' },
+  { id: 'default', label: '默认', description: '按类别分组的简洁日报' },
+  { id: 'detailed', label: '详细', description: '包含置信度分数的完整报告' },
+  { id: 'executive', label: '摘要', description: '简短的高层级总结' },
 ];
 
 export const PROVIDERS = [
   { id: 'openai', label: 'OpenAI' },
-  { id: 'qwen', label: 'Qwen (DashScope)' },
+  { id: 'qwen', label: '通义千问 (DashScope)' },
   { id: 'anthropic', label: 'Anthropic' },
 ];
 
+export function providerDefaults(
+  role: 'vision' | 'text',
+  provider: string,
+): Pick<ProviderConfig, 'api_url' | 'model' | 'api_key_env_var' | 'input_cost_per_million_cents' | 'output_cost_per_million_cents'> {
+  if (provider === 'anthropic') {
+    return {
+      api_url: 'https://api.anthropic.com',
+      model: 'claude-sonnet-4-20250514',
+      api_key_env_var: 'ANTHROPIC_API_KEY',
+      input_cost_per_million_cents: 300,
+      output_cost_per_million_cents: 1500,
+    };
+  }
+  if (provider === 'qwen') {
+    return {
+      api_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      model: role === 'vision' ? 'qwen-vl-max' : 'qwen-plus',
+      api_key_env_var: 'QWEN_API_KEY',
+      input_cost_per_million_cents: 0,
+      output_cost_per_million_cents: 0,
+    };
+  }
+  return {
+    api_url: 'https://api.openai.com/v1',
+    model: 'gpt-4o-mini',
+    api_key_env_var: 'OPENAI_API_KEY',
+    input_cost_per_million_cents: 15,
+    output_cost_per_million_cents: 60,
+  };
+}
+
 export const DEFAULT_SETTINGS: AppSettings = {
   vision_provider: {
-    name: 'openai',
-    api_key_env_var: 'OPENAI_API_KEY',
-    api_key: null,
-    api_url: 'https://api.openai.com/v1',
-    model: 'gpt-4o-mini',
+    name: 'qwen',
+    api_key_env_var: 'QWEN_API_KEY',
+    api_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    model: 'qwen-vl-max',
+    input_cost_per_million_cents: 0,
+    output_cost_per_million_cents: 0,
   },
   text_provider: {
-    name: 'openai',
-    api_key_env_var: 'OPENAI_API_KEY',
-    api_key: null,
-    api_url: 'https://api.openai.com/v1',
-    model: 'gpt-4o-mini',
+    name: 'qwen',
+    api_key_env_var: 'QWEN_API_KEY',
+    api_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    model: 'qwen-plus',
+    input_cost_per_million_cents: 0,
+    output_cost_per_million_cents: 0,
   },
   capture_interval_secs: 30,
   idle_timeout_secs: 300,
   max_daily_cost_cents: 500,
   auto_start: false,
   notify_on_report: true,
+  data_retention_days: 30,
+  vision_connection: {
+    success: null,
+    tested_at: null,
+    message: null,
+  },
+  text_connection: {
+    success: null,
+    tested_at: null,
+    message: null,
+  },
 };

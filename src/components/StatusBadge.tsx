@@ -1,9 +1,9 @@
 import { useRecordingStore } from '../stores/recording';
 
 const LABELS: Record<string, string> = {
-  stopped: 'Stopped',
-  recording: 'Recording',
-  paused: 'Paused',
+  stopped: '已停止',
+  recording: '录制中',
+  paused: '已暂停',
 };
 
 export default function StatusBadge() {

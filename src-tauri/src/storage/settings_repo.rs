@@ -72,4 +72,28 @@ mod tests {
         assert_eq!(loaded.max_daily_cost_cents, 1000);
         assert_eq!(loaded.vision_provider.model, "gpt-4o");
     }
+
+    #[test]
+    fn test_loads_settings_created_before_connection_statuses_existed() {
+        let db = setup_db();
+        let old_settings = r#"{
+          "vision_provider":{"name":"qwen","api_key_env_var":"QWEN_API_KEY","api_key":null,"api_url":"https://example.test","model":"qwen-vl-max"},
+          "text_provider":{"name":"qwen","api_key_env_var":"QWEN_API_KEY","api_key":null,"api_url":"https://example.test","model":"qwen-plus"},
+          "capture_interval_secs":30,
+          "idle_timeout_secs":300,
+          "max_daily_cost_cents":500,
+          "auto_start":false,
+          "notify_on_report":true
+        }"#;
+        db.conn()
+            .execute(
+                "INSERT INTO settings (key, value) VALUES (?1, ?2)",
+                rusqlite::params![SETTINGS_KEY, old_settings],
+            )
+            .unwrap();
+
+        let loaded = db.get_settings().unwrap();
+        assert_eq!(loaded.vision_connection.success, None);
+        assert_eq!(loaded.text_connection.tested_at, None);
+    }
 }

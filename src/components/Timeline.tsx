@@ -24,7 +24,7 @@ function categoryTotalMinutes(activities: Activity[]): number {
 
 export default function Timeline({ activities }: Props) {
   if (activities.length === 0) {
-    return <div className="timeline-empty">No activities recorded today.</div>;
+    return <div className="timeline-empty">今天还没有记录任何活动。</div>;
   }
 
   const grouped = groupByCategory(activities);
@@ -34,7 +34,7 @@ export default function Timeline({ activities }: Props) {
     <div className="timeline">
       {failed.length > 0 && (
         <div className="timeline-warning">
-          {failed.length} activity{failed.length > 1 ? 'ies' : ''} with low confidence
+          {failed.length} 个活动置信度过低
         </div>
       )}
 

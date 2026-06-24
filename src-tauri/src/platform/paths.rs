@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-const APP_NAME: &str = "daytrace";
+const APP_NAME: &str = "som-report";
 
 pub fn app_data_dir() -> PathBuf {
     dirs::data_dir()
@@ -16,7 +16,7 @@ pub fn app_cache_dir() -> PathBuf {
 }
 
 pub fn db_path() -> PathBuf {
-    app_data_dir().join("daytrace.db")
+    app_data_dir().join("som-report.db")
 }
 
 pub fn temp_image_dir() -> PathBuf {
@@ -56,6 +56,14 @@ pub fn cleanup_temp_files() -> std::io::Result<()> {
     Ok(())
 }
 
+pub fn clear_cache() -> std::io::Result<()> {
+    let dir = app_cache_dir();
+    if dir.exists() {
+        fs::remove_dir_all(&dir)?;
+    }
+    ensure_dirs()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -69,13 +77,13 @@ mod tests {
 
         assert!(data.to_str().unwrap().contains(APP_NAME));
         assert!(cache.to_str().unwrap().contains(APP_NAME));
-        assert!(db.to_str().unwrap().ends_with("daytrace.db"));
+        assert!(db.to_str().unwrap().ends_with("som-report.db"));
         assert!(temp.to_str().unwrap().contains("temp_images"));
     }
 
     #[test]
     fn test_ensure_dirs_creates_directories() {
-        let root = std::env::temp_dir().join(format!("daytrace-paths-{}", uuid::Uuid::new_v4()));
+        let root = std::env::temp_dir().join(format!("som-report-paths-{}", uuid::Uuid::new_v4()));
         let data = root.join("data");
         let cache = root.join("cache");
         let temp = cache.join("temp_images");

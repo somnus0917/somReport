@@ -1,12 +1,15 @@
 use chrono::{Local, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::domain::{Activity, AppSettings, PeriodType, Report};
+use crate::domain::{
+    Activity, AppSettings, CapturedFrame, ModelConnectionStatus, PeriodType, ProviderConfig, Report,
+};
 use crate::pipeline::scheduler::CaptureScheduler;
 use crate::platform::idle::IdleDetector;
 use crate::providers;
 use crate::reporting::{aggregation, export, templates};
+use crate::storage::usage_repo::UsageEntry;
 use crate::storage::Database;
 
 #[derive(Debug, Clone, Serialize)]
@@ -119,7 +122,24 @@ pub async fn generate_report(
             ))
             .await
         {
-            Ok(content) if !content.trim().is_empty() => (content, Some(settings.text_provider.model)),
+            Ok(response) if !response.value.trim().is_empty() => {
+                db.record_usage(&UsageEntry {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    occurred_at: Utc::now(),
+                    provider: settings.text_provider.name.clone(),
+                    model: settings.text_provider.model.clone(),
+                    input_tokens: response.usage.input_tokens,
+                    output_tokens: response.usage.output_tokens,
+                    estimated_cost_cents: estimate_cost_cents(
+                        response.usage.input_tokens,
+                        response.usage.output_tokens,
+                        settings.text_provider.input_cost_per_million_cents,
+                        settings.text_provider.output_cost_per_million_cents,
+                    ),
+                    job_id: None,
+                })?;
+                (response.value, Some(settings.text_provider.model))
+            }
             Ok(_) | Err(_) => (local_content, None),
         },
         Err(_) => (local_content, None),
@@ -207,24 +227,12 @@ pub fn get_recording_state(scheduler: State<'_, CaptureScheduler>) -> Result<Str
 }
 
 #[tauri::command]
-pub fn save_provider_key(service: String, key: String) -> Result<(), String> {
-    let entry =
-        keyring::Entry::new("daytrace", &service).map_err(|e| format!("keyring error: {e}"))?;
-    entry
-        .set_password(&key)
-        .map_err(|e| format!("failed to save key: {e}"))?;
-    Ok(())
-}
-
-#[tauri::command]
-pub fn test_provider_key(service: String) -> Result<bool, String> {
-    let entry =
-        keyring::Entry::new("daytrace", &service).map_err(|e| format!("keyring error: {e}"))?;
-    match entry.get_password() {
-        Ok(_) => Ok(true),
-        Err(keyring::Error::NoEntry) => Ok(false),
-        Err(e) => Err(format!("keyring error: {e}")),
-    }
+pub fn show_main_window(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "主窗口不存在".to_string())?;
+    window.show().map_err(|error| error.to_string())?;
+    window.set_focus().map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -241,6 +249,7 @@ pub fn save_settings(
 ) -> Result<(), String> {
     validate_settings(&settings)?;
     db.save_settings(&settings)?;
+    db.purge_records_older_than(settings.data_retention_days)?;
     scheduler.set_interval(settings.capture_interval_secs as u64);
     idle_detector.set_threshold(settings.idle_timeout_secs as u64);
     Ok(())
@@ -248,24 +257,37 @@ pub fn save_settings(
 
 #[tauri::command]
 pub fn clear_all_data(db: State<'_, Database>) -> Result<(), String> {
-    let conn = db.conn();
-    conn.execute_batch(
-        "DELETE FROM activities;
-         DELETE FROM analysis_jobs;
-         DELETE FROM api_usage;
-         DELETE FROM reports;
-         DELETE FROM capture_sessions;
-         DELETE FROM settings;",
-    )
-    .map_err(|e| e.to_string())?;
+    {
+        let conn = db.conn();
+        conn.execute_batch(
+            "DELETE FROM activities;
+             DELETE FROM analysis_jobs;
+             DELETE FROM api_usage;
+             DELETE FROM reports;
+             DELETE FROM capture_sessions;
+             DELETE FROM settings;",
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    db.checkpoint_wal()?;
     crate::platform::paths::cleanup_temp_files().map_err(|e| e.to_string())?;
     Ok(())
 }
 
 #[tauri::command]
-pub fn get_daily_usage(db: State<'_, Database>) -> Result<i64, String> {
+pub fn cleanup_local_storage(db: State<'_, Database>, retention_days: u32) -> Result<(), String> {
+    db.purge_records_older_than(retention_days)?;
+    db.checkpoint_wal()?;
+    crate::platform::paths::clear_cache().map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_daily_usage(
+    db: State<'_, Database>,
+) -> Result<crate::storage::usage_repo::DailyUsage, String> {
     let today = Local::now().date_naive();
-    db.get_daily_usage_cents(today)
+    db.get_daily_usage(today)
 }
 
 fn validate_settings(settings: &AppSettings) -> Result<(), String> {
@@ -287,4 +309,211 @@ fn validate_settings(settings: &AppSettings) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TestResult {
+    pub success: bool,
+    pub message: String,
+    pub response: Option<String>,
+}
+
+#[tauri::command]
+pub async fn test_model_connection(
+    provider_type: String,
+    config: ProviderConfig,
+) -> Result<TestResult, String> {
+    Ok(test_model_config(&provider_type, &config).await)
+}
+
+#[tauri::command]
+pub fn save_model_config(
+    db: State<'_, Database>,
+    provider_type: String,
+    config: ProviderConfig,
+) -> Result<AppSettings, String> {
+    if !matches!(provider_type.as_str(), "vision" | "text") {
+        return Err("Invalid provider type".to_string());
+    }
+    validate_provider_config(&config)?;
+    let mut settings = db.get_settings()?;
+    update_model_config(&mut settings, &provider_type, config)?;
+    db.save_settings(&settings)?;
+    Ok(settings)
+}
+
+#[tauri::command]
+pub async fn save_and_test_model(
+    db: State<'_, Database>,
+    provider_type: String,
+    config: ProviderConfig,
+) -> Result<TestResult, String> {
+    let settings = save_model_config(db.clone(), provider_type.clone(), config)?;
+    let active_config = match provider_type.as_str() {
+        "vision" => settings.vision_provider,
+        "text" => settings.text_provider,
+        _ => return Err("Invalid provider type".to_string()),
+    };
+    let result = test_model_config(&provider_type, &active_config).await;
+
+    let mut saved_settings = db.get_settings()?;
+    update_connection_status(&mut saved_settings, &provider_type, &result)?;
+    db.save_settings(&saved_settings)?;
+    Ok(result)
+}
+
+async fn test_model_config(provider_type: &str, config: &ProviderConfig) -> TestResult {
+    if !matches!(provider_type, "vision" | "text") {
+        return TestResult {
+            success: false,
+            message: "无效的模型类型".to_string(),
+            response: None,
+        };
+    }
+
+    log::info!(
+        "Testing model connection: provider={}, model={}, url={}",
+        config.name,
+        config.model,
+        config.api_url
+    );
+
+    // Resolve API key
+    if let Err(e) = providers::resolve_api_key(config) {
+        log::error!("Failed to resolve API key: {e}");
+        return TestResult {
+            success: false,
+            message: format!("API 密钥未配置: {e}"),
+            response: None,
+        };
+    }
+
+    let result = match provider_type {
+        "text" => {
+            let provider = providers::create_text_provider(config);
+            match provider {
+                Ok(provider) => provider
+                    .generate("Reply only with: connection ok")
+                    .await
+                    .map(|response| response.value),
+                Err(error) => Err(error),
+            }
+        }
+        "vision" => {
+            let frame = match model_test_frame() {
+                Ok(frame) => frame,
+                Err(error) => {
+                    return TestResult {
+                        success: false,
+                        message: format!("无法创建视觉测试图片: {error}"),
+                        response: None,
+                    };
+                }
+            };
+            let provider = providers::create_vision_provider(config);
+            match provider {
+                Ok(provider) => provider.analyze(&frame).await.and_then(|response| {
+                    serde_json::to_string_pretty(&response.value).map_err(|error| error.to_string())
+                }),
+                Err(error) => Err(error),
+            }
+        }
+        _ => unreachable!(),
+    };
+
+    match result {
+        Ok(response) => {
+            log::info!("Model test successful, response length: {}", response.len());
+            TestResult {
+                success: true,
+                message: format!("{} ({}) 连接成功", config.name, config.model),
+                response: Some(response),
+            }
+        }
+        Err(e) => {
+            log::error!("Model test failed: {e}");
+            TestResult {
+                success: false,
+                message: format!("{} ({}) 连接失败: {e}", config.name, config.model),
+                response: None,
+            }
+        }
+    }
+}
+
+fn update_model_config(
+    settings: &mut AppSettings,
+    provider_type: &str,
+    config: ProviderConfig,
+) -> Result<(), String> {
+    match provider_type {
+        "vision" => {
+            settings.vision_provider = config;
+            settings.vision_connection = ModelConnectionStatus::default();
+        }
+        "text" => {
+            settings.text_provider = config;
+            settings.text_connection = ModelConnectionStatus::default();
+        }
+        _ => return Err("Invalid provider type".to_string()),
+    }
+    Ok(())
+}
+
+fn update_connection_status(
+    settings: &mut AppSettings,
+    provider_type: &str,
+    result: &TestResult,
+) -> Result<(), String> {
+    let status = ModelConnectionStatus {
+        success: Some(result.success),
+        tested_at: Some(Utc::now().to_rfc3339()),
+        message: Some(result.message.clone()),
+    };
+    match provider_type {
+        "vision" => settings.vision_connection = status,
+        "text" => settings.text_connection = status,
+        _ => return Err("Invalid provider type".to_string()),
+    }
+    Ok(())
+}
+
+fn validate_provider_config(config: &ProviderConfig) -> Result<(), String> {
+    if !matches!(config.name.as_str(), "openai" | "anthropic" | "qwen") {
+        return Err(format!("Unsupported provider: {}", config.name));
+    }
+    if config.model.trim().is_empty() || config.api_url.trim().is_empty() {
+        return Err("模型名称和 API 地址不能为空".to_string());
+    }
+    Ok(())
+}
+
+fn estimate_cost_cents(
+    input_tokens: i64,
+    output_tokens: i64,
+    input_cost_per_million_cents: f64,
+    output_cost_per_million_cents: f64,
+) -> f64 {
+    (input_tokens as f64 * input_cost_per_million_cents
+        + output_tokens as f64 * output_cost_per_million_cents)
+        / 1_000_000.0
+}
+
+fn model_test_frame() -> Result<CapturedFrame, String> {
+    let image = image::RgbaImage::from_pixel(32, 32, image::Rgba([75, 108, 183, 255]));
+    let mut encoded = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgba8(image)
+        .write_to(&mut encoded, image::ImageFormat::Png)
+        .map_err(|error| format!("Failed to create vision test image: {error}"))?;
+
+    Ok(CapturedFrame {
+        id: "model-connection-test".to_string(),
+        captured_at: Utc::now(),
+        png_data: encoded.into_inner(),
+        mime_type: "image/png".to_string(),
+        width: 32,
+        height: 32,
+        display_index: 0,
+        image_hash: None,
+    })
 }

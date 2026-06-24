@@ -1,214 +1,245 @@
 import { useEffect, useState } from 'react';
-import { useSettingsStore } from '../stores/settings';
-import { PROVIDERS } from '../lib/constants';
+import { useNavigate } from 'react-router-dom';
+import { cleanupLocalStorage, clearAllData, saveSettings } from '../api/tauri';
+import { LoadingState } from '../components/StateViews';
+import type { AppSettings, ModelConnectionStatus } from '../lib/types';
+import { useInvalidateSettings, useSettings } from '../hooks/useSettings';
 
-function ProviderSection({
-  which,
-  label,
-}: {
-  which: 'vision_provider' | 'text_provider';
-  label: string;
-}) {
-  const provider = useSettingsStore((s) => s.settings[which]);
-  const updateProvider = useSettingsStore((s) => s.updateProvider);
-  const testing = useSettingsStore((s) => s.testing[provider.name] ?? 'idle');
-  const keyInput = useSettingsStore((s) => s.keyInputs[provider.name] ?? '');
-  const setKeyInput = useSettingsStore((s) => s.setKeyInput);
-  const saveKey = useSettingsStore((s) => s.saveKey);
-  const testKey = useSettingsStore((s) => s.testKey);
+type OperationalSettings = Pick<
+  AppSettings,
+  'capture_interval_secs' | 'idle_timeout_secs' | 'max_daily_cost_cents' | 'auto_start' | 'notify_on_report' | 'data_retention_days'
+>;
 
-  return (
-    <div className="settings-card">
-      <h3>{label}</h3>
-      <label>
-        Provider
-        <select
-          value={provider.name}
-          onChange={(e) => {
-            const name = e.target.value;
-            const defaults = name === 'anthropic'
-              ? {
-                  api_url: 'https://api.anthropic.com',
-                  model: 'claude-sonnet-4-20250514',
-                  api_key_env_var: 'ANTHROPIC_API_KEY',
-                }
-              : name === 'qwen'
-                ? {
-                    api_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-                    model: which === 'vision_provider' ? 'qwen-vl-max' : 'qwen-plus',
-                    api_key_env_var: 'QWEN_API_KEY',
-                  }
-              : {
-                  api_url: 'https://api.openai.com/v1',
-                  model: 'gpt-4o-mini',
-                  api_key_env_var: 'OPENAI_API_KEY',
-                };
-            updateProvider(which, 'name', name);
-            updateProvider(which, 'api_url', defaults.api_url);
-            updateProvider(which, 'model', defaults.model);
-            updateProvider(which, 'api_key_env_var', defaults.api_key_env_var);
-          }}
-        >
-          {PROVIDERS.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Model
-        <input
-          type="text"
-          value={provider.model}
-          onChange={(e) => updateProvider(which, 'model', e.target.value)}
-        />
-      </label>
-      <label>
-        API URL
-        <input
-          type="text"
-          value={provider.api_url}
-          onChange={(e) => updateProvider(which, 'api_url', e.target.value)}
-        />
-      </label>
-      <div className="settings-key-row">
-        <label className="settings-key-label">
-          API Key
-          <div className="settings-key-input-group">
-            <input
-              type="password"
-              placeholder="Enter new key…"
-              value={keyInput}
-              onChange={(e) => setKeyInput(provider.name, e.target.value)}
-            />
-            <button className="btn-sm btn-primary" onClick={() => saveKey(provider.name)}>
-              Save
-            </button>
-            <button
-              className="btn-sm"
-              onClick={() => testKey(provider.name)}
-              disabled={testing === 'testing'}
-            >
-              {testing === 'testing'
-                ? 'Testing…'
-                : testing === 'success'
-                  ? '✓ OK'
-                  : testing === 'fail'
-                    ? '✗ Fail'
-                    : 'Test'}
-            </button>
-          </div>
-        </label>
-        {provider.api_key_env_var && (
-          <span className="settings-key-hint">
-            Env fallback: {provider.api_key_env_var}
-          </span>
-        )}
-      </div>
-    </div>
-  );
+function connectionLabel(status: ModelConnectionStatus) {
+  if (status.success === true) return '已验证';
+  if (status.success === false) return '测试失败';
+  return '尚未验证';
+}
+
+function formatTestedAt(value: string | null) {
+  if (!value) return '尚未进行实时调用';
+  return `上次测试：${new Date(value).toLocaleString('zh-CN', { hour12: false })}`;
 }
 
 export default function Settings() {
-  const { settings, loading, saving, dirty, fetchSettings, updateField, save, clearData } =
-    useSettingsStore();
+  const navigate = useNavigate();
+  const { data: settings, isLoading } = useSettings();
+  const invalidateSettings = useInvalidateSettings();
+  const [form, setForm] = useState<OperationalSettings | null>(null);
+  const [saving, setSaving] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchSettings();
-  }, [fetchSettings]);
+    if (!settings || form) return;
+    setForm({
+      capture_interval_secs: settings.capture_interval_secs,
+      idle_timeout_secs: settings.idle_timeout_secs,
+      max_daily_cost_cents: settings.max_daily_cost_cents,
+      auto_start: settings.auto_start,
+      notify_on_report: settings.notify_on_report,
+      data_retention_days: settings.data_retention_days,
+    });
+  }, [settings, form]);
 
-  if (loading) return <div className="settings-page"><p>Loading…</p></div>;
+  if (isLoading || !settings || !form) {
+    return <div className="settings-page"><LoadingState message="正在读取设置…" /></div>;
+  }
+
+  const activeSettings: AppSettings = settings;
+  const operationalForm: OperationalSettings = form;
+
+  const hasChanges = Object.entries(operationalForm).some(([key, value]) => activeSettings[key as keyof OperationalSettings] !== value);
+
+  async function saveOperationalSettings() {
+    setSaving(true);
+    setError(null);
+    try {
+      await saveSettings({ ...activeSettings, ...operationalForm });
+      await invalidateSettings();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '保存设置失败');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function clearData() {
+    setSaving(true);
+    setError(null);
+    try {
+      await clearAllData();
+      setConfirmClear(false);
+      setForm(null);
+      await invalidateSettings();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '清除数据失败');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function cleanupStorage() {
+    setCleaning(true);
+    setError(null);
+    try {
+      await cleanupLocalStorage(operationalForm.data_retention_days);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '清理本地存储失败');
+    } finally {
+      setCleaning(false);
+    }
+  }
+
+  const modelCards = [
+    {
+      role: 'vision' as const,
+      eyebrow: '截图分析',
+      title: '视觉模型',
+      config: settings.vision_provider,
+      status: settings.vision_connection,
+    },
+    {
+      role: 'text' as const,
+      eyebrow: '报告生成',
+      title: '文本模型',
+      config: settings.text_provider,
+      status: settings.text_connection,
+    },
+  ];
 
   return (
-    <div className="settings-page">
-      <header className="settings-header">
-        <h2>Settings</h2>
-        <button className="btn-sm btn-primary" disabled={!dirty || saving} onClick={save}>
-          {saving ? 'Saving…' : 'Save Changes'}
-        </button>
+    <div className="settings-page settings-dashboard">
+      <header className="settings-header settings-dashboard-header">
+        <div>
+          <p className="settings-kicker">SYSTEM SETUP</p>
+          <h2>设置</h2>
+          <p>模型配置独立管理；每次测试都是真实 API 调用。</p>
+        </div>
       </header>
 
       <section className="settings-section">
-        <h3>API Providers</h3>
-        <div className="settings-provider-grid">
-          <ProviderSection which="vision_provider" label="Vision (Screenshots)" />
-          <ProviderSection which="text_provider" label="Text (Reports)" />
+        <div className="settings-section-heading">
+          <div>
+            <p className="settings-kicker">MODEL CONNECTIONS</p>
+            <h3>模型连接</h3>
+          </div>
+          <span className="settings-section-note">配置、保存、测试在同一处完成</span>
+        </div>
+        <div className="model-role-grid">
+          {modelCards.map(({ role, eyebrow, title, config, status }) => (
+            <article className="model-role-card" key={role}>
+              <div className="model-role-card-topline">
+                <span>{eyebrow}</span>
+                <span className={`connection-badge ${status.success === true ? 'connected' : status.success === false ? 'failed' : 'pending'}`}>
+                  {connectionLabel(status)}
+                </span>
+              </div>
+              <h4>{title}</h4>
+              <p className="model-role-model">{config.model}</p>
+              <p className="model-role-provider">{config.name} · {config.api_url.replace(/^https?:\/\//, '')}</p>
+              <div className="model-role-proof">
+                <span>{formatTestedAt(status.tested_at)}</span>
+                {status.message && <span title={status.message}>{status.message}</span>}
+              </div>
+              <button className="btn-sm model-role-action" onClick={() => navigate(`/settings/model/${role}`)}>
+                配置并测试 <span aria-hidden="true">→</span>
+              </button>
+            </article>
+          ))}
         </div>
       </section>
 
       <section className="settings-section">
-        <h3>Capture</h3>
-        <div className="settings-card">
-          <label>
-            Capture interval (seconds)
-            <input
-              type="number"
-              min={5}
-              value={settings.capture_interval_secs}
-              onChange={(e) => updateField('capture_interval_secs', Number(e.target.value))}
-            />
-          </label>
-          <label>
-            Idle timeout (seconds)
-            <input
-              type="number"
-              min={30}
-              value={settings.idle_timeout_secs}
-              onChange={(e) => updateField('idle_timeout_secs', Number(e.target.value))}
-            />
-          </label>
+        <div className="settings-section-heading">
+          <div>
+            <p className="settings-kicker">CAPTURE BEHAVIOR</p>
+            <h3>采集与提醒</h3>
+          </div>
         </div>
-      </section>
-
-      <section className="settings-section">
-        <h3>Budget</h3>
-        <div className="settings-card">
-          <label>
-            Daily budget (cents)
-            <input
-              type="number"
-              min={0}
-              value={settings.max_daily_cost_cents}
-              onChange={(e) => updateField('max_daily_cost_cents', Number(e.target.value))}
-            />
-          </label>
-          <span className="settings-hint">
-            ≈ ${(settings.max_daily_cost_cents / 100).toFixed(2)} / day
-          </span>
+        <div className="settings-card settings-operational-card">
+          <div className="settings-input-grid">
+            <label>
+              截图间隔（秒）
+              <input
+                type="number"
+                min={5}
+                max={3600}
+                value={operationalForm.capture_interval_secs}
+                onChange={(event) => setForm({ ...operationalForm, capture_interval_secs: Number(event.target.value) })}
+              />
+            </label>
+            <label>
+              空闲超时（秒）
+              <input
+                type="number"
+                min={30}
+                max={86400}
+                value={operationalForm.idle_timeout_secs}
+                onChange={(event) => setForm({ ...operationalForm, idle_timeout_secs: Number(event.target.value) })}
+              />
+            </label>
+            <label>
+              每日预算（分）
+              <input
+                type="number"
+                min={0}
+                value={operationalForm.max_daily_cost_cents}
+                onChange={(event) => setForm({ ...operationalForm, max_daily_cost_cents: Number(event.target.value) })}
+              />
+            </label>
+            <label>
+              数据保留（天，0 为不自动清理）
+              <input
+                type="number"
+                min={0}
+                value={operationalForm.data_retention_days}
+                onChange={(event) => setForm({ ...operationalForm, data_retention_days: Number(event.target.value) })}
+              />
+            </label>
+          </div>
+          <div className="settings-switch-list">
+            <label className="settings-switch-row">
+              <span><strong>启动时开始录制</strong><small>应用启动后自动进入录制状态</small></span>
+              <input type="checkbox" checked={operationalForm.auto_start} onChange={(event) => setForm({ ...operationalForm, auto_start: event.target.checked })} />
+            </label>
+            <label className="settings-switch-row">
+              <span><strong>报告完成时提醒</strong><small>生成日报或周报后显示系统通知</small></span>
+              <input type="checkbox" checked={operationalForm.notify_on_report} onChange={(event) => setForm({ ...operationalForm, notify_on_report: event.target.checked })} />
+            </label>
+          </div>
+          <div className="settings-save-row">
+            {error && <p className="settings-inline-error">{error}</p>}
+            <button className="btn-sm btn-primary" disabled={!hasChanges || saving} onClick={saveOperationalSettings}>
+              {saving ? '保存中…' : '保存采集设置'}
+            </button>
+            <button className="btn-sm" disabled={cleaning} onClick={cleanupStorage}>
+              {cleaning ? '清理中…' : '立即清理缓存'}
+            </button>
+          </div>
         </div>
       </section>
 
       <section className="settings-section settings-danger">
-        <h3>Danger Zone</h3>
+        <div className="settings-section-heading">
+          <div>
+            <p className="settings-kicker">LOCAL DATA</p>
+            <h3>危险操作</h3>
+          </div>
+        </div>
         <div className="settings-card settings-danger-card">
           <div className="settings-danger-row">
             <div>
-              <strong>Clear All Local Data</strong>
-              <p className="settings-hint">
-                Deletes all activities, reports, screenshots, and settings. This cannot be undone.
-              </p>
+              <strong>清除所有本地数据</strong>
+              <p>活动、报告、截图缓存和所有本地设置都会被删除；环境变量不会被应用修改。</p>
             </div>
             {!confirmClear ? (
-              <button className="btn-sm btn-danger" onClick={() => setConfirmClear(true)}>
-                Clear All Data
-              </button>
+              <button className="btn-sm btn-danger" onClick={() => setConfirmClear(true)}>清除数据</button>
             ) : (
               <div className="settings-danger-confirm">
-                <button
-                  className="btn-sm btn-danger"
-                  onClick={async () => {
-                    await clearData();
-                    setConfirmClear(false);
-                    fetchSettings();
-                  }}
-                >
-                  Confirm Delete
-                </button>
-                <button className="btn-sm" onClick={() => setConfirmClear(false)}>
-                  Cancel
-                </button>
+                <button className="btn-sm btn-danger" disabled={saving} onClick={clearData}>确认清除</button>
+                <button className="btn-sm" disabled={saving} onClick={() => setConfirmClear(false)}>取消</button>
               </div>
             )}
           </div>
