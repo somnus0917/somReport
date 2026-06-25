@@ -19,7 +19,7 @@ export function ErrorState({
     <div className="state-container state-error">
       <p>{message}</p>
       {onRetry && (
-        <button className="btn btn-secondary btn-size-sm" onClick={onRetry}>
+        <button className="btn btn-secondary btn-sm" onClick={onRetry}>
           重试
         </button>
       )}

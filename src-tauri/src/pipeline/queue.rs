@@ -7,22 +7,18 @@ use uuid::Uuid;
 use crate::domain::{
     Activity, AnalysisJob, CapturedFrame, JobStatus, VisionProvider, VisionResult,
 };
-use crate::pipeline::dedup::DedupChecker;
 use crate::pipeline::retry::{with_retry, RetryConfig};
 use crate::storage::usage_repo::UsageEntry;
 use crate::storage::Database;
+use crate::utils::estimate_cost_cents;
 
 pub struct QueueWorker {
     pub db: Arc<Database>,
-    pub dedup: DedupChecker,
 }
 
 impl QueueWorker {
-    pub fn new(db: Arc<Database>, dedup_threshold: f64) -> Self {
-        Self {
-            db,
-            dedup: DedupChecker::new(dedup_threshold),
-        }
+    pub fn new(db: Arc<Database>) -> Self {
+        Self { db }
     }
 
     pub async fn process_frame(
@@ -35,13 +31,7 @@ impl QueueWorker {
         output_cost_per_million_cents: f64,
         activity_window_secs: u64,
     ) -> Result<Vec<Activity>, String> {
-        let is_dup = self.dedup.check_and_update(&frame.png_data)?;
-        if is_dup {
-            log::debug!("Skipping duplicate frame {}", frame.id);
-            return Ok(vec![]);
-        }
-
-        let image_hash = compute_md5(&frame.png_data);
+        let image_hash = compute_md5(&frame.image_data);
 
         let job = AnalysisJob {
             id: Uuid::new_v4().to_string(),
@@ -132,17 +122,6 @@ impl QueueWorker {
     }
 }
 
-fn estimate_cost_cents(
-    input_tokens: i64,
-    output_tokens: i64,
-    input_cost_per_million_cents: f64,
-    output_cost_per_million_cents: f64,
-) -> f64 {
-    (input_tokens as f64 * input_cost_per_million_cents
-        + output_tokens as f64 * output_cost_per_million_cents)
-        / 1_000_000.0
-}
-
 fn compute_md5(data: &[u8]) -> String {
     let mut hasher = Md5::new();
     hasher.update(data);
@@ -168,12 +147,12 @@ mod tests {
 
     #[test]
     fn activities_split_a_capture_window_without_overcounting() {
-        let worker = QueueWorker::new(Arc::new(Database::new_in_memory().unwrap()), 0.98);
+        let worker = QueueWorker::new(Arc::new(Database::new_in_memory().unwrap()));
         let captured_at = Utc::now();
         let frame = CapturedFrame {
             id: "frame".to_string(),
             captured_at,
-            png_data: vec![],
+            image_data: vec![],
             mime_type: "image/png".to_string(),
             width: 1,
             height: 1,

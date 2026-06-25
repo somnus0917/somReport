@@ -1,4 +1,4 @@
-use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
+use chrono::{DateTime, Local, NaiveDate, NaiveTime, Utc};
 use rusqlite::params;
 
 use super::Database;
@@ -74,10 +74,18 @@ impl Database {
     }
 
     pub fn get_activities_for_date(&self, date: NaiveDate) -> Result<Vec<Activity>, String> {
-        let start = date.and_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
-        let end = date.and_time(NaiveTime::from_hms_opt(23, 59, 59).unwrap());
-        let start_utc = DateTime::<Utc>::from_naive_utc_and_offset(start, Utc);
-        let end_utc = DateTime::<Utc>::from_naive_utc_and_offset(end, Utc);
+        let local_start = date.and_hms_opt(0, 0, 0).unwrap();
+        let local_end = date.and_hms_opt(23, 59, 59).unwrap();
+        let start_utc = local_start
+            .and_local_timezone(Local)
+            .single()
+            .unwrap_or_else(|| local_start.and_local_timezone(Local).earliest().unwrap())
+            .with_timezone(&Utc);
+        let end_utc = local_end
+            .and_local_timezone(Local)
+            .single()
+            .unwrap_or_else(|| local_end.and_local_timezone(Local).latest().unwrap())
+            .with_timezone(&Utc);
 
         let conn = self.conn();
         let mut stmt = conn

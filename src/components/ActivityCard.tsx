@@ -56,7 +56,7 @@ export default function ActivityCard({ activity }: Props) {
           className="activity-category-badge"
           style={{ backgroundColor: CATEGORY_COLORS[activity.category] }}
         >
-          {activity.category}
+          {CATEGORIES.find(c => c.value === activity.category)?.label || activity.category}
         </span>
       </div>
 

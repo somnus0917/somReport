@@ -6,6 +6,7 @@ pub mod platform;
 pub mod providers;
 pub mod reporting;
 pub mod storage;
+pub mod utils;
 
 use std::sync::Arc;
 
@@ -44,7 +45,7 @@ pub fn run() {
             let idle_task = idle_detector.clone();
             let idle_rx = idle_detector.idle_rx();
             let app_handle = app.handle().clone();
-            let queue_worker = pipeline::queue::QueueWorker::new(Arc::new(db.clone()), 0.98);
+            let queue_worker = pipeline::queue::QueueWorker::new(Arc::new(db.clone()));
 
             tauri::async_runtime::spawn(async move {
                 idle_task.run().await;

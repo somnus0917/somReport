@@ -1,5 +1,5 @@
 import type { Activity, Category } from '../lib/types';
-import { CATEGORY_COLORS } from '../lib/constants';
+import { CATEGORY_COLORS, CATEGORIES } from '../lib/constants';
 import ActivityCard from './ActivityCard';
 
 interface Props {
@@ -45,7 +45,7 @@ export default function Timeline({ activities }: Props) {
             className="category-chip"
             style={{ borderColor: CATEGORY_COLORS[cat] }}
           >
-            {cat}: {Math.round(categoryTotalMinutes(acts))}m
+            {CATEGORIES.find(c => c.value === cat)?.label || cat}: {Math.round(categoryTotalMinutes(acts))}分钟
           </span>
         ))}
       </div>

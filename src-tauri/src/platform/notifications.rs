@@ -2,7 +2,7 @@ use notify_rust::Notification;
 
 pub fn notify(title: &str, body: &str) {
     if let Err(e) = Notification::new()
-        .appname("Daytrace")
+        .appname("日报助手")
         .summary(title)
         .body(body)
         .show()

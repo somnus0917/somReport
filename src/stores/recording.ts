@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { queryClient } from '../lib/queryClient';
 import type { RecordingState } from '../lib/types';
 import {
   startRecording,
@@ -47,7 +48,7 @@ export const useRecordingStore = create<RecordingUIStore>((set) => ({
     });
 
     const unlistenActivity = onActivityCreated(() => {
-      // Activity created event - TanStack Query will handle data refresh
+      queryClient.invalidateQueries({ queryKey: ['today'] });
     });
 
     return () => {

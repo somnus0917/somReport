@@ -7,6 +7,16 @@ export type Category =
   | 'design'
   | 'other';
 
+export const CATEGORY_LABELS: Record<Category, string> = {
+  development: '开发',
+  meeting: '会议',
+  communication: '沟通',
+  documentation: '文档',
+  research: '研究',
+  design: '设计',
+  other: '其他',
+};
+
 export type RecordingState = 'stopped' | 'recording' | 'paused';
 
 export type PeriodType = 'daily' | 'weekly' | 'custom';

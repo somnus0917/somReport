@@ -114,6 +114,7 @@ body.floating-window #root {
 .floating-state-dot.paused { background: #e2bd58; }
 
 .floating-widget-content {
+  grid-column: 1 / -1;
   min-width: 0;
   align-self: end;
 }
@@ -138,23 +139,45 @@ body.floating-window #root {
   text-transform: uppercase;
 }
 
-.floating-widget-open {
+.floating-widget-controls {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
   align-self: start;
-  padding: 0.32rem 0.52rem;
+}
+
+.fw-btn {
+  padding: 0.28rem 0.45rem;
   color: #c7e9d1;
   background: rgba(126, 190, 148, 0.12);
   border: 1px solid rgba(126, 190, 148, 0.26);
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
+  font-weight: 600;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
-.floating-widget-open:hover,
-.floating-widget-open:focus-visible {
+.fw-btn:hover,
+.fw-btn:focus-visible {
   color: #fff;
   background: rgba(126, 190, 148, 0.24);
   outline: none;
+}
+
+.fw-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.fw-btn:disabled:hover {
+  color: #c7e9d1;
+  background: rgba(126, 190, 148, 0.12);
+}
+
+.fw-btn-open {
+  border-color: rgba(126, 190, 148, 0.4);
 }
 
 .app-layout {
@@ -574,11 +597,6 @@ body.floating-window #root {
 }
 
 /* Sizes */
-.btn-size-sm {
-  padding: 0.2rem 0.6rem;
-  font-size: var(--font-size-sm);
-}
-
 .btn-size-md {
   padding: var(--spacing-sm) var(--spacing-md);
   font-size: var(--font-size-md);

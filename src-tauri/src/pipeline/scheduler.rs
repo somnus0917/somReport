@@ -10,6 +10,7 @@ use crate::domain::CaptureProvider;
 use crate::pipeline::queue::QueueWorker;
 use crate::providers;
 use crate::storage::Database;
+use crate::domain::VisionProvider;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RecordingState {
@@ -72,6 +73,8 @@ impl CaptureScheduler {
         mut idle_rx: watch::Receiver<bool>,
     ) {
         let mut state_rx = self.state_rx.clone();
+        let mut cached_provider: Option<Arc<dyn VisionProvider>> = None;
+        let mut cached_provider_name = String::new();
 
         loop {
             tokio::select! {
@@ -103,24 +106,32 @@ impl CaptureScheduler {
                     }
 
                     let frame = match capture.capture().await {
-                        Ok(frame) => frame,
+                        Ok(Some(frame)) => frame,
+                        Ok(None) => continue,
                         Err(error) => {
                             log::error!("Capture failed: {error}");
                             continue;
                         }
                     };
 
-                    let provider = match providers::create_vision_provider(&settings.vision_provider) {
-                        Ok(provider) => provider,
-                        Err(error) => {
-                            log::error!("Vision provider is unavailable: {error}");
-                            continue;
+                    if cached_provider.is_none() || cached_provider_name != settings.vision_provider.name {
+                        match providers::create_vision_provider(&settings.vision_provider) {
+                            Ok(provider) => {
+                                cached_provider = Some(provider);
+                                cached_provider_name = settings.vision_provider.name.clone();
+                            }
+                            Err(error) => {
+                                log::error!("Vision provider is unavailable: {error}");
+                                continue;
+                            }
                         }
-                    };
+                    }
+
+                    let provider = cached_provider.as_ref().unwrap();
 
                     match queue_worker.process_frame(
                         &frame,
-                        &*provider,
+                        &**provider,
                         &settings.vision_provider.name,
                         &settings.vision_provider.model,
                         settings.vision_provider.input_cost_per_million_cents,

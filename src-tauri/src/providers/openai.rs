@@ -8,34 +8,7 @@ use crate::domain::provider::{
 };
 
 use super::validation::validate_vision_result;
-
-const VISION_SYSTEM_PROMPT: &str = r#"You are an activity classifier for a desktop time-tracker.
-Analyze the screenshot and return a JSON object with this exact shape:
-{
-  "items": [
-    {
-      "category": "development|meeting|communication|documentation|research|design|other",
-      "summary": "≤80 chars describing what the user is doing",
-      "detail": "optional ≤240 chars with extra context",
-      "confidence": 0.0–1.0,
-      "is_work_related": true|false
-    }
-  ]
-}
-Guidelines:
-- Use multiple items if the screen shows distinct activities.
-- Prefer specific categories (development, meeting) over generic ones (other).
-- Confidence should reflect how clearly the screenshot shows the activity.
-- "other" is the fallback; use it only when nothing else fits.
-- Return ONLY valid JSON, no markdown fences, no explanation."#;
-
-const TEXT_SYSTEM_PROMPT: &str = r#"You are a report generator for a work time-tracker.
-Given a list of activities with timestamps and categories, produce a concise daily summary in Markdown format.
-Structure:
-- One section per category with activities listed.
-- Each activity: bullet with time range, summary, and any detail.
-- At the end, a brief "Highlights" section with 2-3 key takeaways.
-Keep it professional and factual. Return ONLY the Markdown report."#;
+use super::prompts::{VISION_SYSTEM_PROMPT, TEXT_SYSTEM_PROMPT};
 
 #[derive(Debug, Serialize)]
 struct ChatMessage<'a> {
@@ -191,7 +164,7 @@ impl VisionProvider for OpenAIProvider {
         &self,
         frame: &CapturedFrame,
     ) -> Result<ProviderResponse<VisionResult>, String> {
-        let b64 = base64::engine::general_purpose::STANDARD.encode(&frame.png_data);
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&frame.image_data);
         let data_url = format!("data:{};base64,{b64}", frame.mime_type);
 
         let messages = vec![

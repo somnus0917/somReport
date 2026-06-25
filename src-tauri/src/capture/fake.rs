@@ -68,26 +68,28 @@ impl CaptureProvider for FakeCaptureProvider {
         }
     }
 
-    async fn capture(&self) -> Result<CapturedFrame, String> {
+    async fn capture(&self) -> Result<Option<CapturedFrame>, String> {
         if !self.session_active.load(Ordering::SeqCst) {
             return Err("No active capture session".to_string());
         }
         self.frame_count.fetch_add(1, Ordering::SeqCst);
-        Ok(CapturedFrame {
+        Ok(Some(CapturedFrame {
             id: Uuid::new_v4().to_string(),
             captured_at: Utc::now(),
-            png_data: Self::generate_test_png(),
+            image_data: Self::generate_test_png(),
             mime_type: "image/png".to_string(),
             width: 1,
             height: 1,
             display_index: 0,
             image_hash: None,
-        })
+        }))
     }
 
     async fn capture_all_displays(&self) -> Result<Vec<CapturedFrame>, String> {
-        let frame = self.capture().await?;
-        Ok(vec![frame])
+        match self.capture().await? {
+            Some(frame) => Ok(vec![frame]),
+            None => Ok(vec![]),
+        }
     }
 }
 
@@ -104,10 +106,10 @@ mod tests {
         assert!(provider.is_session_active());
         assert_eq!(provider.frame_count(), 0);
 
-        let frame = provider.capture().await.unwrap();
+        let frame = provider.capture().await.unwrap().unwrap();
         assert_eq!(frame.width, 1);
         assert_eq!(frame.height, 1);
-        assert!(!frame.png_data.is_empty());
+        assert!(!frame.image_data.is_empty());
         assert_eq!(provider.frame_count(), 1);
 
         let frames = provider.capture_all_displays().await.unwrap();

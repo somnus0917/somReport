@@ -11,6 +11,7 @@ use crate::providers;
 use crate::reporting::{aggregation, export, templates};
 use crate::storage::usage_repo::UsageEntry;
 use crate::storage::Database;
+use crate::utils::estimate_cost_cents;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TodayStats {
@@ -488,17 +489,6 @@ fn validate_provider_config(config: &ProviderConfig) -> Result<(), String> {
     Ok(())
 }
 
-fn estimate_cost_cents(
-    input_tokens: i64,
-    output_tokens: i64,
-    input_cost_per_million_cents: f64,
-    output_cost_per_million_cents: f64,
-) -> f64 {
-    (input_tokens as f64 * input_cost_per_million_cents
-        + output_tokens as f64 * output_cost_per_million_cents)
-        / 1_000_000.0
-}
-
 fn model_test_frame() -> Result<CapturedFrame, String> {
     let image = image::RgbaImage::from_pixel(32, 32, image::Rgba([75, 108, 183, 255]));
     let mut encoded = std::io::Cursor::new(Vec::new());
@@ -509,7 +499,7 @@ fn model_test_frame() -> Result<CapturedFrame, String> {
     Ok(CapturedFrame {
         id: "model-connection-test".to_string(),
         captured_at: Utc::now(),
-        png_data: encoded.into_inner(),
+        image_data: encoded.into_inner(),
         mime_type: "image/png".to_string(),
         width: 32,
         height: 32,

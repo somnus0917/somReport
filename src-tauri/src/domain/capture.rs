@@ -14,8 +14,8 @@ pub struct CaptureCapabilities {
 pub struct CapturedFrame {
     pub id: String,
     pub captured_at: DateTime<Utc>,
-    /// Encoded image bytes. The historical field name is retained for storage/API compatibility.
-    pub png_data: Vec<u8>,
+    /// Encoded image bytes (JPEG or PNG depending on capture settings).
+    pub image_data: Vec<u8>,
     pub mime_type: String,
     pub width: u32,
     pub height: u32,
@@ -26,6 +26,7 @@ pub struct CapturedFrame {
 #[async_trait]
 pub trait CaptureProvider: Send + Sync {
     async fn capabilities(&self) -> CaptureCapabilities;
-    async fn capture(&self) -> Result<CapturedFrame, String>;
+    /// Returns `None` if the frame is a duplicate of the previous capture.
+    async fn capture(&self) -> Result<Option<CapturedFrame>, String>;
     async fn capture_all_displays(&self) -> Result<Vec<CapturedFrame>, String>;
 }

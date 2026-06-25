@@ -139,18 +139,3 @@ export function onActivityCreated(callback: (activity: Activity) => void): Unlis
     }
   };
 }
-
-export function onJobUpdated(
-  callback: (job: { id: string; status: string }) => void,
-): UnlistenFn {
-  const unlisten = listen<{ id: string; status: string }>('job-updated', (event) => {
-    callback(event.payload);
-  });
-  let unlistened = false;
-  return () => {
-    if (!unlistened) {
-      unlistened = true;
-      unlisten.then((fn) => fn());
-    }
-  };
-}

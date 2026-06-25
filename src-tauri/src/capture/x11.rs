@@ -1,3 +1,5 @@
+use std::sync::Mutex;
+
 use async_trait::async_trait;
 use chrono::Utc;
 use image::{codecs::jpeg::JpegEncoder, DynamicImage};
@@ -5,15 +7,21 @@ use uuid::Uuid;
 use xcap::Monitor;
 
 use crate::domain::capture::{CaptureCapabilities, CaptureProvider, CapturedFrame};
+use crate::pipeline::dedup::DedupChecker;
 
 const MAX_EDGE: u32 = 1600;
 const JPEG_QUALITY: u8 = 75;
+const DEDUP_THRESHOLD: f64 = 0.98;
 
-pub struct X11CaptureProvider;
+pub struct X11CaptureProvider {
+    dedup: Mutex<DedupChecker>,
+}
 
 impl X11CaptureProvider {
     pub fn new() -> Self {
-        Self
+        Self {
+            dedup: Mutex::new(DedupChecker::new(DEDUP_THRESHOLD)),
+        }
     }
 
     fn encode_jpeg(
@@ -37,6 +45,13 @@ impl X11CaptureProvider {
             .map_err(|e| e.to_string())?;
         Ok((buf.into_inner(), target.width(), target.height()))
     }
+
+    fn capture_monitor(monitor: &Monitor) -> Result<DynamicImage, String> {
+        let img = monitor
+            .capture_image()
+            .map_err(|e| format!("Capture failed: {e}"))?;
+        Ok(DynamicImage::ImageRgba8(img))
+    }
 }
 
 impl Default for X11CaptureProvider {
@@ -56,43 +71,42 @@ impl CaptureProvider for X11CaptureProvider {
         }
     }
 
-    async fn capture(&self) -> Result<CapturedFrame, String> {
-        let monitors = Monitor::all().map_err(|e| format!("Failed to enumerate monitors: {e}"))?;
+    async fn capture(&self) -> Result<Option<CapturedFrame>, String> {
+        let monitors =
+            Monitor::all().map_err(|e| format!("Failed to enumerate monitors: {e}"))?;
         let monitor = monitors.into_iter().next().ok_or("No monitors found")?;
+        let dynamic = Self::capture_monitor(&monitor)?;
 
-        let img = monitor
-            .capture_image()
-            .map_err(|e| format!("Capture failed: {e}"))?;
-        let dynamic = DynamicImage::ImageRgba8(img);
+        // Dedup check BEFORE encoding: avoids Lanczos3 + JPEG work on duplicate frames.
+        if self.dedup.lock().unwrap().check_and_update(&dynamic) {
+            return Ok(None);
+        }
+
         let (data, width, height) = Self::encode_jpeg(&dynamic, MAX_EDGE, JPEG_QUALITY)?;
-
-        Ok(CapturedFrame {
+        Ok(Some(CapturedFrame {
             id: Uuid::new_v4().to_string(),
             captured_at: Utc::now(),
-            png_data: data,
+            image_data: data,
             mime_type: "image/jpeg".to_string(),
             width,
             height,
             display_index: 0,
             image_hash: None,
-        })
+        }))
     }
 
     async fn capture_all_displays(&self) -> Result<Vec<CapturedFrame>, String> {
-        let monitors = Monitor::all().map_err(|e| format!("Failed to enumerate monitors: {e}"))?;
+        let monitors =
+            Monitor::all().map_err(|e| format!("Failed to enumerate monitors: {e}"))?;
         let mut frames = Vec::with_capacity(monitors.len());
 
         for (index, monitor) in monitors.into_iter().enumerate() {
-            let img = monitor
-                .capture_image()
-                .map_err(|e| format!("Capture failed for display {index}: {e}"))?;
-            let dynamic = DynamicImage::ImageRgba8(img);
+            let dynamic = Self::capture_monitor(&monitor)?;
             let (data, width, height) = Self::encode_jpeg(&dynamic, MAX_EDGE, JPEG_QUALITY)?;
-
             frames.push(CapturedFrame {
                 id: Uuid::new_v4().to_string(),
                 captured_at: Utc::now(),
-                png_data: data,
+                image_data: data,
                 mime_type: "image/jpeg".to_string(),
                 width,
                 height,

@@ -11,16 +11,15 @@ impl DedupChecker {
         }
     }
 
-    pub fn check_and_update(&mut self, image_data: &[u8]) -> Result<bool, String> {
-        let hash = compute_dhash(image_data)?;
+    pub fn check_and_update(&mut self, img: &image::DynamicImage) -> bool {
+        let hash = compute_dhash(img);
         if let Some(prev) = self.last_hash {
-            let similarity = hash_similarity(prev, hash);
-            if similarity >= self.threshold {
-                return Ok(true);
+            if hash_similarity(prev, hash) >= self.threshold {
+                return true;
             }
         }
         self.last_hash = Some(hash);
-        Ok(false)
+        false
     }
 
     pub fn reset(&mut self) {
@@ -28,8 +27,7 @@ impl DedupChecker {
     }
 }
 
-pub fn compute_dhash(image_data: &[u8]) -> Result<u64, String> {
-    let img = image::load_from_memory(image_data).map_err(|e| format!("decode: {e}"))?;
+pub fn compute_dhash(img: &image::DynamicImage) -> u64 {
     let gray = img
         .resize_exact(9, 8, image::imageops::FilterType::Triangle)
         .to_luma8();
@@ -44,7 +42,7 @@ pub fn compute_dhash(image_data: &[u8]) -> Result<u64, String> {
             }
         }
     }
-    Ok(hash)
+    hash
 }
 
 pub fn hash_similarity(a: u64, b: u64) -> f64 {
@@ -55,65 +53,55 @@ pub fn hash_similarity(a: u64, b: u64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use image::DynamicImage;
 
-    fn make_test_png(width: u32, height: u32, fill: u8) -> Vec<u8> {
-        let img = image::ImageBuffer::<image::Luma<u8>, _>::from_fn(width, height, |_, _| {
-            image::Luma([fill])
-        });
-        let mut buf = std::io::Cursor::new(Vec::new());
-        image::DynamicImage::from(img)
-            .write_to(&mut buf, image::ImageFormat::Png)
-            .unwrap();
-        buf.into_inner()
+    fn make_test_image(width: u32, height: u32, fill: u8) -> DynamicImage {
+        DynamicImage::from(
+            image::ImageBuffer::<image::Luma<u8>, _>::from_fn(width, height, |_, _| {
+                image::Luma([fill])
+            }),
+        )
     }
 
     #[test]
     fn deterministic_same_input_same_hash() {
-        let data = make_test_png(100, 100, 128);
-        let h1 = compute_dhash(&data).unwrap();
-        let h2 = compute_dhash(&data).unwrap();
-        assert_eq!(h1, h2);
+        let img = make_test_image(100, 100, 128);
+        assert_eq!(compute_dhash(&img), compute_dhash(&img));
     }
 
     #[test]
     fn identical_frames_are_duplicate() {
-        let data = make_test_png(100, 100, 100);
+        let img = make_test_image(100, 100, 100);
         let mut checker = DedupChecker::new(0.9);
-        assert!(!checker.check_and_update(&data).unwrap());
-        assert!(checker.check_and_update(&data).unwrap());
+        assert!(!checker.check_and_update(&img));
+        assert!(checker.check_and_update(&img));
     }
 
     #[test]
     fn different_frames_not_duplicate() {
         let w = 100u32;
-        let img1 = image::ImageBuffer::<image::Luma<u8>, _>::from_fn(w, 100, |x, _| {
-            image::Luma([(x * 255 / (w - 1)) as u8])
-        });
-        let img2 = image::ImageBuffer::<image::Luma<u8>, _>::from_fn(w, 100, |x, _| {
-            image::Luma([((w - 1 - x) * 255 / (w - 1)) as u8])
-        });
-        let mut buf1 = std::io::Cursor::new(Vec::new());
-        let mut buf2 = std::io::Cursor::new(Vec::new());
-        image::DynamicImage::from(img1)
-            .write_to(&mut buf1, image::ImageFormat::Png)
-            .unwrap();
-        image::DynamicImage::from(img2)
-            .write_to(&mut buf2, image::ImageFormat::Png)
-            .unwrap();
-        let data1 = buf1.into_inner();
-        let data2 = buf2.into_inner();
+        let img1 = DynamicImage::from(
+            image::ImageBuffer::<image::Luma<u8>, _>::from_fn(w, 100, |x, _| {
+                image::Luma([(x * 255 / (w - 1)) as u8])
+            }),
+        );
+        let img2 = DynamicImage::from(
+            image::ImageBuffer::<image::Luma<u8>, _>::from_fn(w, 100, |x, _| {
+                image::Luma([((w - 1 - x) * 255 / (w - 1)) as u8])
+            }),
+        );
         let mut checker = DedupChecker::new(0.9);
-        assert!(!checker.check_and_update(&data1).unwrap());
-        assert!(!checker.check_and_update(&data2).unwrap());
+        assert!(!checker.check_and_update(&img1));
+        assert!(!checker.check_and_update(&img2));
     }
 
     #[test]
     fn reset_clears_history() {
-        let data = make_test_png(100, 100, 100);
+        let img = make_test_image(100, 100, 100);
         let mut checker = DedupChecker::new(0.9);
-        checker.check_and_update(&data).unwrap();
+        checker.check_and_update(&img);
         checker.reset();
-        assert!(!checker.check_and_update(&data).unwrap());
+        assert!(!checker.check_and_update(&img));
     }
 
     #[test]
