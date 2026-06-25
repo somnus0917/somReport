@@ -12,7 +12,7 @@ pub struct UsageEntry {
     pub model: String,
     pub input_tokens: i64,
     pub output_tokens: i64,
-    pub estimated_cost_cents: f64,
+    pub estimated_cost_yuan: f64,
     pub job_id: Option<String>,
 }
 
@@ -20,14 +20,14 @@ pub struct UsageEntry {
 pub struct DailyUsage {
     pub input_tokens: i64,
     pub output_tokens: i64,
-    pub estimated_cost_cents: f64,
+    pub estimated_cost_yuan: f64,
 }
 
 impl Database {
     pub fn record_usage(&self, entry: &UsageEntry) -> Result<(), String> {
         let conn = self.conn();
         conn.execute(
-            "INSERT INTO api_usage (id, occurred_at, provider, model, input_tokens, output_tokens, estimated_cost_cents, job_id)
+            "INSERT INTO api_usage (id, occurred_at, provider, model, input_tokens, output_tokens, estimated_cost_yuan, job_id)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 entry.id,
@@ -36,15 +36,15 @@ impl Database {
                 entry.model,
                 entry.input_tokens,
                 entry.output_tokens,
-                entry.estimated_cost_cents,
+                entry.estimated_cost_yuan,
                 entry.job_id,
             ],
         ).map_err(|e| e.to_string())?;
         Ok(())
     }
 
-    pub fn get_daily_usage_cents(&self, date: NaiveDate) -> Result<f64, String> {
-        Ok(self.get_daily_usage(date)?.estimated_cost_cents)
+    pub fn get_daily_usage_yuan(&self, date: NaiveDate) -> Result<f64, String> {
+        Ok(self.get_daily_usage(date)?.estimated_cost_yuan)
     }
 
     pub fn get_daily_usage(&self, date: NaiveDate) -> Result<DailyUsage, String> {
@@ -59,7 +59,7 @@ impl Database {
         let conn = self.conn();
         let usage = conn
             .query_row(
-                "SELECT COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0), COALESCE(SUM(estimated_cost_cents), 0)
+                "SELECT COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0), COALESCE(SUM(estimated_cost_yuan), 0)
                  FROM api_usage
                  WHERE occurred_at >= ?1 AND occurred_at < ?2",
                 params![start_utc.to_rfc3339(), end_utc.to_rfc3339()],
@@ -67,7 +67,7 @@ impl Database {
                     Ok(DailyUsage {
                         input_tokens: row.get(0)?,
                         output_tokens: row.get(1)?,
-                        estimated_cost_cents: row.get(2)?,
+                        estimated_cost_yuan: row.get(2)?,
                     })
                 },
             )
@@ -86,7 +86,7 @@ mod tests {
         Database::new_in_memory().expect("failed to create in-memory db")
     }
 
-    fn make_entry(date: NaiveDate, hour: u32, cost_cents: f64) -> UsageEntry {
+    fn make_entry(date: NaiveDate, hour: u32, cost_yuan: f64) -> UsageEntry {
         let dt =
             DateTime::<Utc>::from_naive_utc_and_offset(date.and_hms_opt(hour, 0, 0).unwrap(), Utc);
         UsageEntry {
@@ -96,7 +96,7 @@ mod tests {
             model: "gpt-4o".to_string(),
             input_tokens: 1000,
             output_tokens: 500,
-            estimated_cost_cents: cost_cents,
+            estimated_cost_yuan: cost_yuan,
             job_id: None,
         }
     }
@@ -116,14 +116,14 @@ mod tests {
         db.record_usage(&e2).unwrap();
         db.record_usage(&e3).unwrap();
 
-        let total = db.get_daily_usage_cents(date).unwrap();
+        let total = db.get_daily_usage_yuan(date).unwrap();
         assert_eq!(total, 125.0);
 
-        let other_total = db.get_daily_usage_cents(other_date).unwrap();
+        let other_total = db.get_daily_usage_yuan(other_date).unwrap();
         assert_eq!(other_total, 100.0);
 
         let empty_date = NaiveDate::from_ymd_opt(2025, 6, 14).unwrap();
-        let empty_total = db.get_daily_usage_cents(empty_date).unwrap();
+        let empty_total = db.get_daily_usage_yuan(empty_date).unwrap();
         assert_eq!(empty_total, 0.0);
     }
 }

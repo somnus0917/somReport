@@ -26,7 +26,7 @@ export default function Today() {
   const usage = dailyUsage ?? {
     input_tokens: 0,
     output_tokens: 0,
-    estimated_cost_cents: 0,
+    estimated_cost_yuan: 0,
   };
 
   return (

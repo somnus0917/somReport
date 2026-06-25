@@ -5,10 +5,10 @@ interface Props {
   usage: DailyUsage;
 }
 
-function formatEstimatedCost(cents: number) {
-  if (cents === 0) return '0 分';
-  if (cents < 1) return `${cents.toFixed(4)} 分`;
-  return `${(cents / 100).toFixed(2)} 元（${cents.toFixed(2)} 分）`;
+function formatEstimatedCost(yuan: number) {
+  if (yuan === 0) return '0 元';
+  if (yuan < 0.01) return `${yuan.toFixed(6)} 元`;
+  return `${yuan.toFixed(4)} 元`;
 }
 
 export default function BudgetIndicator({ stats, usage }: Props) {
@@ -17,7 +17,7 @@ export default function BudgetIndicator({ stats, usage }: Props) {
       <span className="budget-time">
         {stats.work_minutes}分钟 / {stats.total_minutes}分钟
       </span>
-      <span className="budget-cost">估算 {formatEstimatedCost(usage.estimated_cost_cents)}</span>
+      <span className="budget-cost">估算 {formatEstimatedCost(usage.estimated_cost_yuan)}</span>
       <span className="budget-count">{usage.input_tokens + usage.output_tokens} tokens</span>
       <span className="budget-count">{stats.activity_count} 个活动</span>
     </div>

@@ -6,6 +6,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "002_fix_usage_cost_type",
         include_str!("../migrations/002_fix_usage_cost_type.sql"),
     ),
+    (
+        "003_convert_usage_cost_to_yuan",
+        include_str!("../migrations/003_convert_usage_cost_to_yuan.sql"),
+    ),
 ];
 
 pub fn run_migrations(conn: &Connection) -> rusqlite::Result<()> {
@@ -81,6 +85,6 @@ mod tests {
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM _migrations", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(count, 2);
+        assert_eq!(count, 3);
     }
 }

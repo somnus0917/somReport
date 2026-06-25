@@ -70,18 +70,23 @@ body {
 
 body.floating-window,
 body.floating-window #root {
+  width: 100vw;
+  height: 100vh;
   min-height: 0;
   background: transparent;
+  overflow: hidden;
 }
 
 .floating-window-root {
+  width: 100vw;
+  height: 100vh;
   background: transparent;
 }
 
 .floating-window-root #root {
   box-sizing: border-box;
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
   padding: 8px;
   background: transparent;
 }
@@ -90,9 +95,10 @@ body.floating-window #root {
   box-sizing: border-box;
   display: grid;
   grid-template-columns: 1fr auto;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto;
   gap: 0.45rem 0.7rem;
-  flex: 1;
+  flex: 0 0 auto;
+  width: 100%;
   min-width: 0;
   min-height: 0;
   padding: 0.9rem 1rem;
@@ -655,15 +661,61 @@ body.floating-window #root {
 }
 
 .btn-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border-alt);
+  border-radius: var(--radius-sm);
   padding: 0.2rem 0.6rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   font-family: inherit;
+  text-decoration: none;
+  cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.btn-sm:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text);
+  border-color: var(--color-text-dim);
+}
+
+.btn-sm:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .btn-sm:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+.btn-sm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-sm.btn-primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-bg);
+}
+
+.btn-sm.btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.btn-sm.btn-danger {
+  background: transparent;
+  border-color: rgba(217, 74, 74, 0.3);
+  color: var(--color-error-text);
+}
+
+.btn-sm.btn-danger:hover:not(:disabled) {
+  background: rgba(217, 74, 74, 0.1);
+  border-color: rgba(217, 74, 74, 0.5);
 }
 
 /* Placeholder pages */
@@ -724,9 +776,7 @@ body.floating-window #root {
   color: var(--color-text-muted);
 }
 
-.settings-card input[type="text"],
-.settings-card input[type="number"],
-.settings-card input[type="password"],
+.settings-card input:not([type="checkbox"]),
 .settings-card select {
   padding: 0.4rem var(--spacing-sm);
   border: 1px solid var(--color-border-alt);
@@ -735,7 +785,27 @@ body.floating-window #root {
   color: var(--color-text);
   font-size: var(--font-size-md);
   font-family: inherit;
+  color-scheme: dark;
   transition: border-color 0.2s ease;
+}
+
+.settings-card select {
+  appearance: none;
+  padding-right: 2rem;
+  background-color: var(--color-surface);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--color-text-muted) 50%),
+    linear-gradient(135deg, var(--color-text-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.1rem) 50%,
+    calc(100% - 0.75rem) 50%;
+  background-size: 0.36rem 0.36rem, 0.36rem 0.36rem;
+  background-repeat: no-repeat;
+}
+
+.settings-card select option {
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
 .settings-card input:focus,
@@ -1288,7 +1358,27 @@ body.floating-window #root {
   color: var(--color-text);
   font-size: var(--font-size-md);
   font-family: inherit;
+  color-scheme: dark;
   transition: border-color 0.2s ease;
+}
+
+.reports-form select {
+  appearance: none;
+  padding-right: 2rem;
+  background-color: var(--color-surface);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--color-text-muted) 50%),
+    linear-gradient(135deg, var(--color-text-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.1rem) 50%,
+    calc(100% - 0.75rem) 50%;
+  background-size: 0.36rem 0.36rem, 0.36rem 0.36rem;
+  background-repeat: no-repeat;
+}
+
+.reports-form select option {
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
 .reports-form select:focus,

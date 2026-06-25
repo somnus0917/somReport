@@ -10,7 +10,7 @@ use crate::domain::{
 use crate::pipeline::retry::{with_retry, RetryConfig};
 use crate::storage::usage_repo::UsageEntry;
 use crate::storage::Database;
-use crate::utils::estimate_cost_cents;
+use crate::utils::estimate_cost_yuan;
 
 pub struct QueueWorker {
     pub db: Arc<Database>,
@@ -27,8 +27,8 @@ impl QueueWorker {
         provider: &dyn VisionProvider,
         provider_name: &str,
         model_name: &str,
-        input_cost_per_million_cents: f64,
-        output_cost_per_million_cents: f64,
+        input_cost_per_million_yuan: f64,
+        output_cost_per_million_yuan: f64,
         activity_window_secs: u64,
     ) -> Result<Vec<Activity>, String> {
         let image_hash = compute_md5(&frame.image_data);
@@ -65,11 +65,11 @@ impl QueueWorker {
                     model: model_name.to_string(),
                     input_tokens: response.usage.input_tokens,
                     output_tokens: response.usage.output_tokens,
-                    estimated_cost_cents: estimate_cost_cents(
+                    estimated_cost_yuan: estimate_cost_yuan(
                         response.usage.input_tokens,
                         response.usage.output_tokens,
-                        input_cost_per_million_cents,
-                        output_cost_per_million_cents,
+                        input_cost_per_million_yuan,
+                        output_cost_per_million_yuan,
                     ),
                     job_id: Some(job.id.clone()),
                 })?;
@@ -208,8 +208,8 @@ mod tests {
     }
 
     #[test]
-    fn cost_estimation_preserves_fractional_cents() {
-        let cost = estimate_cost_cents(1_000, 500, 15.0, 60.0);
-        assert!((cost - 0.045).abs() < f64::EPSILON);
+    fn cost_estimation_preserves_fractional_yuan() {
+        let cost = estimate_cost_yuan(1_000, 500, 0.15, 0.60);
+        assert!((cost - 0.00045).abs() < f64::EPSILON);
     }
 }

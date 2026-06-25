@@ -137,23 +137,23 @@ export default function ModelConfig() {
 
         <div className="settings-input-grid">
           <label>
-            输入价格（分 / 100 万 tokens）
+            输入价格（元 / 100 万 tokens）
             <input
               type="number"
               min={0}
               step="0.01"
-              value={config.input_cost_per_million_cents}
-              onChange={(event) => setConfig({ ...config, input_cost_per_million_cents: Number(event.target.value) })}
+              value={config.input_cost_per_million_yuan}
+              onChange={(event) => setConfig({ ...config, input_cost_per_million_yuan: Number(event.target.value) })}
             />
           </label>
           <label>
-            输出价格（分 / 100 万 tokens）
+            输出价格（元 / 100 万 tokens）
             <input
               type="number"
               min={0}
               step="0.01"
-              value={config.output_cost_per_million_cents}
-              onChange={(event) => setConfig({ ...config, output_cost_per_million_cents: Number(event.target.value) })}
+              value={config.output_cost_per_million_yuan}
+              onChange={(event) => setConfig({ ...config, output_cost_per_million_yuan: Number(event.target.value) })}
             />
           </label>
         </div>
@@ -163,7 +163,7 @@ export default function ModelConfig() {
           <p>
             本应用不会保存 API 密钥。请在启动应用前设置 <code>{config.api_key_env_var ?? '对应环境变量'}</code>，然后使用下方按钮测试当前进程能否读取并调用模型。
           </p>
-          {(config.input_cost_per_million_cents === 0 && config.output_cost_per_million_cents === 0) && (
+          {(config.input_cost_per_million_yuan === 0 && config.output_cost_per_million_yuan === 0) && (
             <p>费用估算当前为 0；请按服务商账单填写输入和输出单价后，预算与费用才会生效。</p>
           )}
         </div>

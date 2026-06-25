@@ -7,9 +7,9 @@ pub struct ProviderConfig {
     pub api_url: String,
     pub model: String,
     #[serde(default)]
-    pub input_cost_per_million_cents: f64,
+    pub input_cost_per_million_yuan: f64,
     #[serde(default)]
-    pub output_cost_per_million_cents: f64,
+    pub output_cost_per_million_yuan: f64,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -25,7 +25,7 @@ pub struct AppSettings {
     pub text_provider: ProviderConfig,
     pub capture_interval_secs: u32,
     pub idle_timeout_secs: u32,
-    pub max_daily_cost_cents: u32,
+    pub max_daily_cost_yuan: f64,
     pub auto_start: bool,
     pub notify_on_report: bool,
     #[serde(default = "default_data_retention_days")]
@@ -43,21 +43,21 @@ impl Default for AppSettings {
                 name: "qwen".to_string(),
                 api_key_env_var: Some("QWEN_API_KEY".to_string()),
                 api_url: "https://dashscope.aliyuncs.com/compatible-mode/v1".to_string(),
-                model: "qwen-vl-max".to_string(),
-                input_cost_per_million_cents: 0.0,
-                output_cost_per_million_cents: 0.0,
+                model: "qwen3.6-flash".to_string(),
+                input_cost_per_million_yuan: 0.0,
+                output_cost_per_million_yuan: 0.0,
             },
             text_provider: ProviderConfig {
                 name: "qwen".to_string(),
                 api_key_env_var: Some("QWEN_API_KEY".to_string()),
                 api_url: "https://dashscope.aliyuncs.com/compatible-mode/v1".to_string(),
-                model: "qwen-plus".to_string(),
-                input_cost_per_million_cents: 0.0,
-                output_cost_per_million_cents: 0.0,
+                model: "qwen3.6-flash".to_string(),
+                input_cost_per_million_yuan: 0.0,
+                output_cost_per_million_yuan: 0.0,
             },
             capture_interval_secs: 30,
             idle_timeout_secs: 300,
-            max_daily_cost_cents: 500,
+            max_daily_cost_yuan: 5.0,
             auto_start: false,
             notify_on_report: true,
             data_retention_days: default_data_retention_days(),

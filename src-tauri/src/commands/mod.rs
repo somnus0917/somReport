@@ -11,7 +11,7 @@ use crate::providers;
 use crate::reporting::{aggregation, export, templates};
 use crate::storage::usage_repo::UsageEntry;
 use crate::storage::Database;
-use crate::utils::estimate_cost_cents;
+use crate::utils::estimate_cost_yuan;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TodayStats {
@@ -131,11 +131,11 @@ pub async fn generate_report(
                     model: settings.text_provider.model.clone(),
                     input_tokens: response.usage.input_tokens,
                     output_tokens: response.usage.output_tokens,
-                    estimated_cost_cents: estimate_cost_cents(
+                    estimated_cost_yuan: estimate_cost_yuan(
                         response.usage.input_tokens,
                         response.usage.output_tokens,
-                        settings.text_provider.input_cost_per_million_cents,
-                        settings.text_provider.output_cost_per_million_cents,
+                        settings.text_provider.input_cost_per_million_yuan,
+                        settings.text_provider.output_cost_per_million_yuan,
                     ),
                     job_id: None,
                 })?;

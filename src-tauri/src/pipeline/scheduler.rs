@@ -96,8 +96,8 @@ impl CaptureScheduler {
                         }
                     };
 
-                    match db.get_daily_usage_cents(chrono::Local::now().date_naive()) {
-                        Ok(cost) if cost >= f64::from(settings.max_daily_cost_cents) => {
+                    match db.get_daily_usage_yuan(chrono::Local::now().date_naive()) {
+                        Ok(cost) if cost >= settings.max_daily_cost_yuan => {
                             log::warn!("Daily API budget reached; skipping capture");
                             continue;
                         }
@@ -134,8 +134,8 @@ impl CaptureScheduler {
                         &**provider,
                         &settings.vision_provider.name,
                         &settings.vision_provider.model,
-                        settings.vision_provider.input_cost_per_million_cents,
-                        settings.vision_provider.output_cost_per_million_cents,
+                        settings.vision_provider.input_cost_per_million_yuan,
+                        settings.vision_provider.output_cost_per_million_yuan,
                         self.interval_sec(),
                     ).await {
                         Ok(activities) => {

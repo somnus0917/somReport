@@ -59,7 +59,7 @@ export interface TodayStats {
 export interface DailyUsage {
   input_tokens: number;
   output_tokens: number;
-  estimated_cost_cents: number;
+  estimated_cost_yuan: number;
 }
 
 export interface ProviderConfig {
@@ -67,8 +67,8 @@ export interface ProviderConfig {
   api_key_env_var: string | null;
   api_url: string;
   model: string;
-  input_cost_per_million_cents: number;
-  output_cost_per_million_cents: number;
+  input_cost_per_million_yuan: number;
+  output_cost_per_million_yuan: number;
 }
 
 export interface AppSettings {
@@ -76,7 +76,7 @@ export interface AppSettings {
   text_provider: ProviderConfig;
   capture_interval_secs: number;
   idle_timeout_secs: number;
-  max_daily_cost_cents: number;
+  max_daily_cost_yuan: number;
   auto_start: boolean;
   notify_on_report: boolean;
   data_retention_days: number;
