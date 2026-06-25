@@ -8,7 +8,7 @@ import Timeline from '../components/Timeline';
 import { LoadingState } from '../components/StateViews';
 
 export default function Today() {
-  const { subscribe } = useRecordingStore();
+  const { subscribe, error } = useRecordingStore();
   const { data: todayData, isLoading: todayLoading } = useToday();
   const { data: dailyUsage } = useDailyUsage();
 
@@ -30,8 +30,13 @@ export default function Today() {
       </header>
       <header className="today-header">
         <div className="today-header-left">
-          <CaptureToggle />
-          <StatusBadge />
+          <div className="today-capture-panel">
+            <div className="today-capture-row">
+              <CaptureToggle />
+              <StatusBadge />
+            </div>
+            {error && <p className="capture-error">{error}</p>}
+          </div>
         </div>
         <BudgetIndicator stats={stats} usage={usage} />
       </header>
