@@ -235,6 +235,14 @@ pub fn show_main_window(app: AppHandle) -> Result<(), String> {
     window.show().map_err(|error| error.to_string())?;
     window.set_focus().map_err(|error| error.to_string())
 }
+#[tauri::command]
+pub fn show_floating_widget(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("float")
+        .ok_or_else(|| "悬浮窗不存在".to_string())?;
+    window.show().map_err(|error| error.to_string())?;
+    window.set_focus().map_err(|error| error.to_string())
+}
 
 #[tauri::command]
 pub fn get_settings(db: State<'_, Database>) -> Result<AppSettings, String> {

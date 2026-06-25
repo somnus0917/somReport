@@ -1,7 +1,7 @@
-import { useEffect, useState, type MouseEvent } from 'react';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { Activity, RecordingState } from '../lib/types';
-import { CATEGORIES } from '../lib/constants';
+import { useEffect, useState, type MouseEvent } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import type { Activity, RecordingState } from "../lib/types";
+import { CATEGORIES } from "../lib/constants";
 import {
   getRecordingState,
   getToday,
@@ -11,47 +11,54 @@ import {
   startRecording,
   pauseRecording,
   stopRecording,
-} from '../api/tauri';
+} from "../api/tauri";
 
 const STATE_LABEL: Record<RecordingState, string> = {
-  recording: '正在记录',
-  paused: '已暂停',
-  stopped: '未开始',
+  recording: "正在记录",
+  paused: "已暂停",
+  stopped: "未开始",
 };
 
 export default function FloatingWidget() {
-  const [state, setState] = useState<RecordingState>('stopped');
+  const [state, setState] = useState<RecordingState>("stopped");
   const [latestActivity, setLatestActivity] = useState<Activity | null>(null);
 
   function startDragging(event: MouseEvent<HTMLDivElement>) {
-    if ((event.target as HTMLElement).closest('button')) return;
+    if ((event.target as HTMLElement).closest("button")) return;
     void getCurrentWindow().startDragging();
   }
 
   useEffect(() => {
-    document.body.classList.add('floating-window');
-    void getRecordingState().then(setState).catch(() => undefined);
+    document.documentElement.classList.add("floating-window-root");
+    document.body.classList.add("floating-window");
+    void getRecordingState()
+      .then(setState)
+      .catch(() => undefined);
     void getToday()
-      .then(([activities]) => setLatestActivity(activities[activities.length - 1] ?? null))
+      .then(([activities]) =>
+        setLatestActivity(activities[activities.length - 1] ?? null),
+      )
       .catch(() => undefined);
     const unlistenState = onRecordingStatus(setState);
     const unlistenActivity = onActivityCreated(setLatestActivity);
     return () => {
-      document.body.classList.remove('floating-window');
+      document.documentElement.classList.remove("floating-window-root");
+      document.body.classList.remove("floating-window");
       unlistenState();
       unlistenActivity();
     };
   }, []);
 
   function handlePrimaryAction() {
-    if (state === 'recording') {
+    if (state === "recording") {
       void pauseRecording().catch(() => undefined);
     } else {
       void startRecording().catch(() => undefined);
     }
   }
 
-  const primaryLabel = state === 'recording' ? '暂停' : state === 'paused' ? '继续' : '开始';
+  const primaryLabel =
+    state === "recording" ? "暂停" : state === "paused" ? "继续" : "开始";
 
   return (
     <div className="floating-widget" onMouseDown={startDragging}>
@@ -66,17 +73,31 @@ export default function FloatingWidget() {
         <button
           className="fw-btn"
           onClick={() => void stopRecording().catch(() => undefined)}
-          disabled={state === 'stopped'}
+          disabled={state === "stopped"}
         >
           停止
         </button>
-        <button className="fw-btn fw-btn-open" onClick={() => void showMainWindow()}>
+        <button
+          className="fw-btn fw-btn-open"
+          onClick={() => void showMainWindow()}
+        >
           打开
+        </button>
+        <button
+          className="fw-btn"
+          onClick={() => void getCurrentWindow().hide()}
+        >
+          隐藏
         </button>
       </div>
       <div className="floating-widget-content">
-        <p>{latestActivity?.summary ?? '等待下一次识别…'}</p>
-        <span>{latestActivity ? (CATEGORIES.find(c => c.value === latestActivity.category)?.label || latestActivity.category) : '日报助手'}</span>
+        <p>{latestActivity?.summary ?? "等待下一次识别…"}</p>
+        <span>
+          {latestActivity
+            ? CATEGORIES.find((c) => c.value === latestActivity.category)
+                ?.label || latestActivity.category
+            : "日报助手"}
+        </span>
       </div>
     </div>
   );

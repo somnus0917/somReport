@@ -86,6 +86,7 @@ pub fn run() {
             commands::stop_recording,
             commands::get_recording_state,
             commands::show_main_window,
+            commands::show_floating_widget,
             commands::get_settings,
             commands::save_settings,
             commands::clear_all_data,

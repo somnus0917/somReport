@@ -74,20 +74,32 @@ body.floating-window #root {
   background: transparent;
 }
 
+.floating-window-root {
+  background: transparent;
+}
+
+.floating-window-root #root {
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  padding: 8px;
+  background: transparent;
+}
+
 .floating-widget {
   box-sizing: border-box;
   display: grid;
   grid-template-columns: 1fr auto;
   grid-template-rows: auto 1fr;
   gap: 0.45rem 0.7rem;
-  width: 100vw;
-  height: 100vh;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   padding: 0.9rem 1rem;
   color: #eaf4ed;
-  background: rgba(20, 27, 23, 0.96);
+  background: rgba(20, 27, 23, 0.9);
   border: 1px solid rgba(126, 190, 148, 0.34);
   border-radius: var(--radius-xl);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.3);
 }
 
 .floating-widget-status {

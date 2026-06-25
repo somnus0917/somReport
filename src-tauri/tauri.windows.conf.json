@@ -1,0 +1,26 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "日报助手",
+        "width": 1024,
+        "height": 768,
+        "resizable": true,
+        "fullscreen": false
+      },
+      {
+        "label": "float",
+        "title": "日报助手",
+        "width": 316,
+        "height": 132,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": true
+      }
+    ]
+  }
+}
