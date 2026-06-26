@@ -98,7 +98,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   max_daily_cost_yuan: 5,
   auto_start: false,
   notify_on_report: true,
-  data_retention_days: 30,
+  auto_cleanup_cache_days: 7,
   vision_connection: {
     success: null,
     tested_at: null,

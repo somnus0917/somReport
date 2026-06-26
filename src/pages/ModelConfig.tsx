@@ -38,6 +38,7 @@ export default function ModelConfig() {
   const invalidateSettings = useInvalidateSettings();
   const role = isRole(rawRole) ? rawRole : null;
   const [config, setConfig] = useState<ProviderConfig | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
   const [action, setAction] = useState<'save' | 'test' | null>(null);
   const [result, setResult] = useState<TestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -137,12 +138,32 @@ export default function ModelConfig() {
 
         <label>
           API 密钥 (API Key)
-          <input
-            type="password"
-            placeholder={config.api_key_env_var ? `优先读取此处的输入。若为空，则回退读取环境变量 ${config.api_key_env_var}` : "请输入您的 API 密钥"}
-            value={config.api_key || ''}
-            onChange={(event) => setConfig({ ...config, api_key: event.target.value })}
-          />
+          <div className="password-input-container" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <input
+              type={showApiKey ? 'text' : 'password'}
+              placeholder={config.api_key_env_var ? `优先读取此处的输入。若为空，则回退读取环境变量 ${config.api_key_env_var}` : "请输入您的 API 密钥"}
+              value={config.api_key || ''}
+              onChange={(event) => setConfig({ ...config, api_key: event.target.value })}
+              style={{ width: '100%', paddingRight: '50px' }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowApiKey(!showApiKey)}
+              style={{
+                position: 'absolute',
+                right: '8px',
+                padding: '2px 8px',
+                fontSize: '10px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid var(--color-border-alt)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                color: 'var(--color-text-muted)',
+              }}
+            >
+              {showApiKey ? '隐藏' : '显示'}
+            </button>
+          </div>
         </label>
 
         <div className="settings-input-grid">
@@ -169,9 +190,9 @@ export default function ModelConfig() {
         </div>
 
         <div className="model-env-note">
-          <strong>密钥只从环境变量读取</strong>
+          <strong>密钥保存与环境变量支持</strong>
           <p>
-            本应用不会保存 API 密钥。请在启动应用前设置 <code>{config.api_key_env_var ?? '对应环境变量'}</code>，然后使用下方按钮测试当前进程能否读取并调用模型。
+            您可以在此输入并保存 API 密钥，或者在启动应用前设置环境变量 <code>{config.api_key_env_var ?? '对应环境变量'}</code>。如果两者都存在，本应用会优先读取输入框中的密钥。
           </p>
           {(config.input_cost_per_million_yuan === 0 && config.output_cost_per_million_yuan === 0) && (
             <p>费用估算当前为 0；请按服务商账单填写输入和输出单价后，预算与费用才会生效。</p>

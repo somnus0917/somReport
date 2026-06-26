@@ -9,6 +9,10 @@ function formatTime(iso: string): string {
 
 function formatDuration(start: string, end: string): string {
   const ms = new Date(end).getTime() - new Date(start).getTime();
+  const secs = Math.max(1, Math.round(ms / 1000));
+  if (secs < 60) {
+    return `${secs}秒`;
+  }
   const mins = Math.round(ms / 60000);
   if (mins < 60) return `${mins}分钟`;
   const h = Math.floor(mins / 60);
@@ -80,8 +84,16 @@ export default function ActivityCard({ activity }: Props) {
             ))}
           </select>
           <div className="activity-edit-actions">
-            <button onClick={save} className="btn-sm btn-primary">保存</button>
-            <button onClick={() => { setEditing(false); setSummary(activity.summary); setCategory(activity.category); }} className="btn-sm">取消</button>
+            <button onClick={save} disabled={updateMutation.isPending} className="btn-sm btn-primary">
+              {updateMutation.isPending ? '保存中…' : '保存'}
+            </button>
+            <button
+              onClick={() => { setEditing(false); setSummary(activity.summary); setCategory(activity.category); }}
+              disabled={updateMutation.isPending}
+              className="btn-sm"
+            >
+              取消
+            </button>
           </div>
         </div>
       ) : (
@@ -89,12 +101,30 @@ export default function ActivityCard({ activity }: Props) {
       )}
 
       <div className="activity-actions">
-        <button onClick={() => setEditing(true)} className="btn-sm">编辑</button>
-        <button onClick={toggleWork} className="btn-sm">
-          {activity.is_work_related ? '标记为非工作' : '标记为工作'}
+        <button
+          onClick={() => setEditing(true)}
+          disabled={updateMutation.isPending || deleteMutation.isPending}
+          className="btn-sm"
+        >
+          编辑
         </button>
-        <button onClick={() => deleteMutation.mutate(activity.id)} className="btn-sm btn-danger">
-          删除
+        <button
+          onClick={toggleWork}
+          disabled={updateMutation.isPending || deleteMutation.isPending}
+          className="btn-sm"
+        >
+          {updateMutation.isPending ? '更新中…' : (activity.is_work_related ? '标记为非工作' : '标记为工作')}
+        </button>
+        <button
+          onClick={() => {
+            if (window.confirm('确定要删除这条活动记录吗？')) {
+              deleteMutation.mutate(activity.id);
+            }
+          }}
+          disabled={updateMutation.isPending || deleteMutation.isPending}
+          className="btn-sm btn-danger"
+        >
+          {deleteMutation.isPending ? '删除中…' : '删除'}
         </button>
       </div>
     </div>

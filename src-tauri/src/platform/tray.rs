@@ -28,36 +28,43 @@ pub fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     let menu = Menu::with_items(app, &[&toggle, &open, &quit])?;
 
+    app.manage(toggle.clone());
+
     TrayIconBuilder::new()
         .menu(&menu)
         .tooltip("日报助手")
-        .on_menu_event(move |app, event| {
-            let id = event.id().as_ref();
-            match id {
-                TOGGLE_ID => {
-                    let scheduler = app.state::<CaptureScheduler>();
-                    let was_recording =
-                        scheduler.state() == crate::pipeline::scheduler::RecordingState::Recording;
-                    if was_recording {
-                        scheduler.pause();
-                        let _ = app.emit("recording-status", "paused");
-                        notifications::notify("日报助手", "录制已暂停");
-                    } else {
-                        scheduler.start();
-                        let _ = app.emit("recording-status", "recording");
-                        notifications::notify("日报助手", "录制已开始");
+        .on_menu_event({
+            let toggle = toggle.clone();
+            move |app, event| {
+                let id = event.id().as_ref();
+                match id {
+                    TOGGLE_ID => {
+                        let scheduler = app.state::<CaptureScheduler>();
+                        let was_recording =
+                            scheduler.state() == crate::pipeline::scheduler::RecordingState::Recording;
+                        if was_recording {
+                            scheduler.pause();
+                            let _ = app.emit("recording-status", "paused");
+                            let _ = toggle.set_checked(false);
+                            notifications::notify("日报助手", "录制已暂停");
+                        } else {
+                            scheduler.start();
+                            let _ = app.emit("recording-status", "recording");
+                            let _ = toggle.set_checked(true);
+                            notifications::notify("日报助手", "录制已开始");
+                        }
                     }
-                }
-                OPEN_ID => {
-                    if let Some(win) = app.get_webview_window("main") {
-                        let _ = win.show();
-                        let _ = win.set_focus();
+                    OPEN_ID => {
+                        if let Some(win) = app.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.set_focus();
+                        }
                     }
+                    QUIT_ID => {
+                        app.exit(0);
+                    }
+                    _ => {}
                 }
-                QUIT_ID => {
-                    app.exit(0);
-                }
-                _ => {}
             }
         })
         .on_tray_icon_event(|tray, event| {

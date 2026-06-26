@@ -63,9 +63,54 @@ impl Database {
         Ok(())
     }
 
+    pub fn check_and_perform_cache_cleanup(&self, auto_cleanup_cache_days: u32) -> Result<(), String> {
+        if auto_cleanup_cache_days == 0 {
+            return Ok(());
+        }
+        let last_cleanup: Option<String> = self.conn()
+            .query_row(
+                "SELECT value FROM settings WHERE key = 'last_cache_cleanup_at'",
+                [],
+                |row| row.get(0),
+            )
+            .ok();
+
+        let should_cleanup = match last_cleanup {
+            Some(date_str) => {
+                if let Ok(last_date) = chrono::DateTime::parse_from_rfc3339(&date_str) {
+                    let days_since = (Utc::now() - last_date.with_timezone(&Utc)).num_days();
+                    days_since >= i64::from(auto_cleanup_cache_days)
+                } else {
+                    true
+                }
+            }
+            None => true,
+        };
+
+        if should_cleanup {
+            log::info!("Performing periodic automatic cache cleanup...");
+            crate::platform::paths::clear_cache().map_err(|error| error.to_string())?;
+            let now_str = Utc::now().to_rfc3339();
+            self.conn().execute(
+                "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('last_cache_cleanup_at', ?1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))",
+                rusqlite::params![now_str],
+            ).map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    }
+
     pub fn checkpoint_wal(&self) -> Result<(), String> {
         self.conn()
             .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
             .map_err(|error| error.to_string())
+    }
+
+    pub fn backup_database(&self) -> Result<(), String> {
+        let db_path = crate::platform::paths::db_path();
+        let mut backup_path = db_path.clone();
+        backup_path.set_extension("db.bak");
+        std::fs::copy(&db_path, &backup_path)
+            .map_err(|error| format!("Failed to copy database file: {error}"))?;
+        Ok(())
     }
 }

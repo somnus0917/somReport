@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { cleanupLocalStorage, clearAllData, saveSettings } from "../api/tauri";
+import {
+  clearDataSelective,
+  getStorageSize,
+  saveSettings,
+  type StorageSizeInfo,
+} from "../api/tauri";
 import { LoadingState } from "../components/StateViews";
 import type { AppSettings, ModelConnectionStatus } from "../lib/types";
 import { useInvalidateSettings, useSettings } from "../hooks/useSettings";
@@ -12,7 +17,7 @@ type OperationalSettings = Pick<
   | "max_daily_cost_yuan"
   | "auto_start"
   | "notify_on_report"
-  | "data_retention_days"
+  | "auto_cleanup_cache_days"
 >;
 
 function connectionLabel(status: ModelConnectionStatus) {
@@ -26,6 +31,14 @@ function formatTestedAt(value: string | null) {
   return `上次测试：${new Date(value).toLocaleString("zh-CN", { hour12: false })}`;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+}
+
 export default function Settings() {
   const navigate = useNavigate();
   const { data: settings, isLoading } = useSettings();
@@ -33,8 +46,45 @@ export default function Settings() {
   const [form, setForm] = useState<OperationalSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
-  const [cleaning, setCleaning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [storageSize, setStorageSize] = useState<StorageSizeInfo | null>(null);
+  const [clearCacheChecked, setClearCacheChecked] = useState(true);
+  const [clearDbChecked, setClearDbChecked] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
+
+  useEffect(() => {
+    const savedTheme =
+      (localStorage.getItem("somreport-theme") as any) || "system";
+    setTheme(savedTheme);
+  }, []);
+
+  const handleThemeChange = (newTheme: "light" | "dark" | "system") => {
+    setTheme(newTheme);
+    localStorage.setItem("somreport-theme", newTheme);
+    let resolved: "light" | "dark" = "dark";
+    if (newTheme === "system") {
+      const isLight = window.matchMedia(
+        "(prefers-color-scheme: light)",
+      ).matches;
+      resolved = isLight ? "light" : "dark";
+    } else {
+      resolved = newTheme;
+    }
+    document.documentElement.setAttribute("data-theme", resolved);
+  };
+
+  const fetchStorageSize = async () => {
+    try {
+      const size = await getStorageSize();
+      setStorageSize(size);
+    } catch (e) {
+      console.error("Failed to load storage size", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchStorageSize();
+  }, []);
 
   useEffect(() => {
     if (!settings || form) return;
@@ -44,7 +94,7 @@ export default function Settings() {
       max_daily_cost_yuan: settings.max_daily_cost_yuan,
       auto_start: settings.auto_start,
       notify_on_report: settings.notify_on_report,
-      data_retention_days: settings.data_retention_days,
+      auto_cleanup_cache_days: settings.auto_cleanup_cache_days,
     });
   }, [settings, form]);
 
@@ -77,30 +127,21 @@ export default function Settings() {
     }
   }
 
-  async function clearData() {
+  async function handleSelectiveClear() {
     setSaving(true);
     setError(null);
     try {
-      await clearAllData();
+      await clearDataSelective(clearCacheChecked, clearDbChecked);
       setConfirmClear(false);
-      setForm(null);
-      await invalidateSettings();
+      await fetchStorageSize();
+      if (clearDbChecked) {
+        setForm(null);
+        await invalidateSettings();
+      }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "清除数据失败");
+      setError(reason instanceof Error ? reason.message : "清理数据失败");
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function cleanupStorage() {
-    setCleaning(true);
-    setError(null);
-    try {
-      await cleanupLocalStorage(operationalForm.data_retention_days);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "清理本地存储失败");
-    } finally {
-      setCleaning(false);
     }
   }
 
@@ -229,15 +270,15 @@ export default function Settings() {
               />
             </label>
             <label>
-              数据保留（天，0 为不自动清理）
+              自动清理截图缓存（天，0 为不清理）
               <input
                 type="number"
                 min={0}
-                value={operationalForm.data_retention_days}
+                value={operationalForm.auto_cleanup_cache_days}
                 onChange={(event) =>
                   setForm({
                     ...operationalForm,
-                    data_retention_days: Number(event.target.value),
+                    auto_cleanup_cache_days: Number(event.target.value),
                   })
                 }
               />
@@ -286,13 +327,30 @@ export default function Settings() {
             >
               {saving ? "保存中…" : "保存采集设置"}
             </button>
-            <button
-              className="btn-sm"
-              disabled={cleaning}
-              onClick={cleanupStorage}
-            >
-              {cleaning ? "清理中…" : "立即清理缓存"}
-            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-heading">
+          <div>
+            <p className="settings-kicker">APPEARANCE</p>
+            <h3>外观与主题</h3>
+          </div>
+        </div>
+        <div className="settings-card">
+          <div className="settings-input-grid">
+            <label>
+              选择主题颜色
+              <select
+                value={theme}
+                onChange={(e) => handleThemeChange(e.target.value as any)}
+              >
+                <option value="system">跟随系统</option>
+                <option value="light">浅色主题 (Light)</option>
+                <option value="dark">深色主题 (Dark)</option>
+              </select>
+            </label>
           </div>
         </div>
       </section>
@@ -300,43 +358,97 @@ export default function Settings() {
       <section className="settings-section settings-danger">
         <div className="settings-section-heading">
           <div>
-            <p className="settings-kicker">LOCAL DATA</p>
-            <h3>危险操作</h3>
+            <p className="settings-kicker">LOCAL STORAGE</p>
+            <h3>存储空间与数据清理</h3>
           </div>
         </div>
         <div className="settings-card settings-danger-card">
-          <div className="settings-danger-row">
-            <div>
-              <strong>清除所有本地数据</strong>
-              <p>
-                活动、报告、截图缓存和所有本地设置都会被删除；环境变量不会被应用修改。
-              </p>
+          <div className="storage-stats-grid">
+            <div className="storage-stat-item">
+              <span className="storage-stat-label">
+                数据库占用（活动与配置）
+              </span>
+              <strong className="storage-stat-value">
+                {storageSize
+                  ? formatBytes(storageSize.db_size_bytes)
+                  : "正在读取…"}
+              </strong>
             </div>
-            {!confirmClear ? (
-              <button
-                className="btn-sm btn-danger"
-                onClick={() => setConfirmClear(true)}
+            <div className="storage-stat-item">
+              <span className="storage-stat-label">临时截图与缓存文件</span>
+              <strong className="storage-stat-value">
+                {storageSize
+                  ? formatBytes(storageSize.cache_size_bytes)
+                  : "正在读取…"}
+              </strong>
+            </div>
+          </div>
+
+          <hr className="settings-divider" />
+
+          <div className="settings-danger-row">
+            <div style={{ flex: 1 }}>
+              <strong>选择性清理本地数据</strong>
+              <p
+                style={{
+                  margin: "0.25rem 0 0.75rem",
+                  fontSize: "0.8rem",
+                  color: "var(--color-text-muted)",
+                }}
               >
-                清除数据
-              </button>
-            ) : (
-              <div className="settings-danger-confirm">
+                可以单独选择清理截图缓存或完全抹除数据库记录：
+              </p>
+
+              <div className="clear-options-grid">
+                <label className="clear-option-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={clearCacheChecked}
+                    onChange={(e) => setClearCacheChecked(e.target.checked)}
+                  />
+                  <span>清理临时图片与截图缓存</span>
+                </label>
+                <label className="clear-option-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={clearDbChecked}
+                    onChange={(e) => setClearDbChecked(e.target.checked)}
+                  />
+                  <span className="warning-text">
+                    抹除数据库数据（活动记录、报告、配置等）
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div className="clear-actions">
+              {!confirmClear ? (
                 <button
                   className="btn-sm btn-danger"
-                  disabled={saving}
-                  onClick={clearData}
+                  disabled={!clearCacheChecked && !clearDbChecked}
+                  onClick={() => setConfirmClear(true)}
                 >
-                  确认清除
+                  清理选中项目
                 </button>
-                <button
-                  className="btn-sm"
-                  disabled={saving}
-                  onClick={() => setConfirmClear(false)}
-                >
-                  取消
-                </button>
-              </div>
-            )}
+              ) : (
+                <div className="settings-danger-confirm">
+                  <button
+                    className="btn-sm btn-danger"
+                    disabled={saving}
+                    onClick={handleSelectiveClear}
+                  >
+                    确认清理
+                  </button>
+                  <button
+                    className="btn-sm"
+                    disabled={saving}
+                    onClick={() => setConfirmClear(false)}
+                  >
+                    取消
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </section>

@@ -5,6 +5,7 @@ import {
   startRecording,
   pauseRecording,
   stopRecording,
+  getRecordingState,
   onRecordingStatus,
   onActivityCreated,
 } from '../api/tauri';
@@ -35,14 +36,34 @@ export const useRecordingStore = create<RecordingUIStore>((set) => ({
   },
 
   pause: async () => {
-    await pauseRecording();
+    try {
+      await pauseRecording();
+      set({ error: null });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '无法暂停录制';
+      set({ error: message });
+    }
   },
 
   stop: async () => {
-    await stopRecording();
+    try {
+      await stopRecording();
+      set({ error: null });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '无法停止录制';
+      set({ error: message });
+    }
   },
 
   subscribe: () => {
+    getRecordingState()
+      .then((state) => {
+        set({ recordingState: state });
+      })
+      .catch((err) => {
+        console.error('Failed to sync initial recording state:', err);
+      });
+
     const unlistenStatus = onRecordingStatus((recordingState) => {
       set({ recordingState });
     });

@@ -118,43 +118,66 @@ impl OpenAIProvider {
             temperature: 0.2,
         };
 
-        let resp = self
-            .client
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| format!("Request failed: {e}"))?;
+        let mut attempts = 0;
+        let max_attempts = 3;
+        let mut delay = std::time::Duration::from_millis(500);
 
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let text = resp.text().await.unwrap_or_default();
-            return Err(format!("API error {status}: {text}"));
+        loop {
+            attempts += 1;
+            let resp_res = self
+                .client
+                .post(&url)
+                .header("Authorization", format!("Bearer {}", self.api_key))
+                .header("Content-Type", "application/json")
+                .json(&body)
+                .send()
+                .await;
+
+            match resp_res {
+                Ok(resp) => {
+                    let status = resp.status();
+                    if status.is_success() {
+                        let chat: ChatResponse = resp
+                            .json()
+                            .await
+                            .map_err(|e| format!("Failed to parse response: {e}"))?;
+
+                        let content = chat
+                            .choices
+                            .first()
+                            .and_then(|c| c.message.content.clone())
+                            .ok_or_else(|| "No content in response".to_string())?;
+                        let usage = chat.usage.unwrap_or(ChatUsage {
+                            prompt_tokens: None,
+                            completion_tokens: None,
+                        });
+                        return Ok(ProviderResponse {
+                            value: content,
+                            usage: TokenUsage {
+                                input_tokens: usage.prompt_tokens.unwrap_or_default(),
+                                output_tokens: usage.completion_tokens.unwrap_or_default(),
+                            },
+                        });
+                    } else if (status.as_u16() == 429 || status.is_server_error()) && attempts < max_attempts {
+                        tokio::time::sleep(delay).await;
+                        delay *= 2;
+                        continue;
+                    } else {
+                        let text = resp.text().await.unwrap_or_default();
+                        return Err(format!("API error {status}: {text}"));
+                    }
+                }
+                Err(e) => {
+                    if attempts < max_attempts {
+                        tokio::time::sleep(delay).await;
+                        delay *= 2;
+                        continue;
+                    } else {
+                        return Err(format!("Request failed: {e}"));
+                    }
+                }
+            }
         }
-
-        let chat: ChatResponse = resp
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse response: {e}"))?;
-
-        let content = chat
-            .choices
-            .first()
-            .and_then(|c| c.message.content.clone())
-            .ok_or_else(|| "No content in response".to_string())?;
-        let usage = chat.usage.unwrap_or(ChatUsage {
-            prompt_tokens: None,
-            completion_tokens: None,
-        });
-        Ok(ProviderResponse {
-            value: content,
-            usage: TokenUsage {
-                input_tokens: usage.prompt_tokens.unwrap_or_default(),
-                output_tokens: usage.completion_tokens.unwrap_or_default(),
-            },
-        })
     }
 }
 

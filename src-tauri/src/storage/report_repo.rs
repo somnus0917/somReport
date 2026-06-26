@@ -91,6 +91,15 @@ impl Database {
 
         Ok(reports)
     }
+
+    pub fn delete_report(&self, id: &str) -> Result<(), String> {
+        let conn = self.conn();
+        conn.execute(
+            "DELETE FROM reports WHERE id = ?1",
+            params![id],
+        ).map_err(|e| e.to_string())?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

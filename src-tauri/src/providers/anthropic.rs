@@ -112,45 +112,68 @@ impl AnthropicProvider {
             messages,
         };
 
-        let resp = self
-            .client
-            .post(&url)
-            .header("x-api-key", &self.api_key)
-            .header("anthropic-version", "2023-06-01")
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| format!("Request failed: {e}"))?;
+        let mut attempts = 0;
+        let max_attempts = 3;
+        let mut delay = std::time::Duration::from_millis(500);
 
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let text = resp.text().await.unwrap_or_default();
-            return Err(format!("API error {status}: {text}"));
+        loop {
+            attempts += 1;
+            let resp_res = self
+                .client
+                .post(&url)
+                .header("x-api-key", &self.api_key)
+                .header("anthropic-version", "2023-06-01")
+                .header("Content-Type", "application/json")
+                .json(&body)
+                .send()
+                .await;
+
+            match resp_res {
+                Ok(resp) => {
+                    let status = resp.status();
+                    if status.is_success() {
+                        let msg: MessagesResponse = resp
+                            .json()
+                            .await
+                            .map_err(|e| format!("Failed to parse response: {e}"))?;
+
+                        let content = msg
+                            .content
+                            .iter()
+                            .find(|b| b.block_type.as_deref() == Some("text"))
+                            .and_then(|b| b.text.clone())
+                            .ok_or_else(|| "No text content in response".to_string())?;
+                        let usage = msg.usage.unwrap_or(MessageUsage {
+                            input_tokens: None,
+                            output_tokens: None,
+                        });
+                        return Ok(ProviderResponse {
+                            value: content,
+                            usage: TokenUsage {
+                                input_tokens: usage.input_tokens.unwrap_or_default(),
+                                output_tokens: usage.output_tokens.unwrap_or_default(),
+                            },
+                        });
+                    } else if (status.as_u16() == 429 || status.is_server_error()) && attempts < max_attempts {
+                        tokio::time::sleep(delay).await;
+                        delay *= 2;
+                        continue;
+                    } else {
+                        let text = resp.text().await.unwrap_or_default();
+                        return Err(format!("API error {status}: {text}"));
+                    }
+                }
+                Err(e) => {
+                    if attempts < max_attempts {
+                        tokio::time::sleep(delay).await;
+                        delay *= 2;
+                        continue;
+                    } else {
+                        return Err(format!("Request failed: {e}"));
+                    }
+                }
+            }
         }
-
-        let msg: MessagesResponse = resp
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse response: {e}"))?;
-
-        let content = msg
-            .content
-            .iter()
-            .find(|b| b.block_type.as_deref() == Some("text"))
-            .and_then(|b| b.text.clone())
-            .ok_or_else(|| "No text content in response".to_string())?;
-        let usage = msg.usage.unwrap_or(MessageUsage {
-            input_tokens: None,
-            output_tokens: None,
-        });
-        Ok(ProviderResponse {
-            value: content,
-            usage: TokenUsage {
-                input_tokens: usage.input_tokens.unwrap_or_default(),
-                output_tokens: usage.output_tokens.unwrap_or_default(),
-            },
-        })
     }
 }
 

@@ -25,6 +25,10 @@ export async function deleteActivity(id: string): Promise<void> {
   return safeInvoke("delete_activity", { id }, "删除活动失败");
 }
 
+export async function deleteReport(id: string): Promise<void> {
+  return safeInvoke("delete_report", { id }, "删除报告失败");
+}
+
 export async function generateReport(
   periodType: string,
   periodStart: string,
@@ -84,12 +88,30 @@ export async function clearAllData(): Promise<void> {
   return safeInvoke("clear_all_data", undefined, "清除数据失败");
 }
 
-export async function cleanupLocalStorage(
-  retentionDays: number,
+export interface StorageSizeInfo {
+  db_size_bytes: number;
+  cache_size_bytes: number;
+}
+
+export async function getStorageSize(): Promise<StorageSizeInfo> {
+  return safeInvoke("get_storage_size", undefined, "获取存储空间占用失败");
+}
+
+export async function clearDataSelective(
+  clearCache: boolean,
+  clearDatabase: boolean,
 ): Promise<void> {
   return safeInvoke(
+    "clear_data_selective",
+    { clearCache, clearDatabase },
+    "清理数据失败",
+  );
+}
+
+export async function cleanupLocalStorage(): Promise<void> {
+  return safeInvoke(
     "cleanup_local_storage",
-    { retentionDays },
+    undefined,
     "清理本地存储失败",
   );
 }
@@ -165,4 +187,8 @@ export function onActivityCreated(
       unlisten.then((fn) => fn());
     }
   };
+}
+
+export async function sendNotification(title: string, body: string): Promise<void> {
+  return safeInvoke("send_notification", { title, body }, "发送通知失败");
 }

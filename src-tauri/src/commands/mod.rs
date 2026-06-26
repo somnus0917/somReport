@@ -35,15 +35,17 @@ pub fn get_today(db: State<'_, Database>) -> Result<(Vec<Activity>, TodayStats),
     let today = Local::now().date_naive();
     let activities = db.get_activities_for_date(today)?;
 
-    let total_minutes: i64 = activities
+    let total_seconds: i64 = activities
         .iter()
-        .map(|a| (a.ended_at - a.started_at).num_minutes())
+        .map(|a| (a.ended_at - a.started_at).num_seconds())
         .sum();
-    let work_minutes: i64 = activities
+    let work_seconds: i64 = activities
         .iter()
         .filter(|a| a.is_work_related)
-        .map(|a| (a.ended_at - a.started_at).num_minutes())
+        .map(|a| (a.ended_at - a.started_at).num_seconds())
         .sum();
+    let total_minutes = (total_seconds + 30) / 60; // round to nearest minute
+    let work_minutes = (work_seconds + 30) / 60;
 
     let stats = TodayStats {
         total_minutes,
@@ -86,6 +88,11 @@ pub fn update_activity(
 #[tauri::command]
 pub fn delete_activity(db: State<'_, Database>, id: String) -> Result<(), String> {
     db.soft_delete_activity(&id)
+}
+
+#[tauri::command]
+pub fn delete_report(db: State<'_, Database>, id: String) -> Result<(), String> {
+    db.delete_report(&id)
 }
 
 #[tauri::command]
@@ -190,6 +197,9 @@ pub fn start_recording(
     // Fail before changing the UI state if recording cannot reach a configured provider.
     providers::create_vision_provider(&settings.vision_provider)?;
     scheduler.start();
+    if let Some(toggle) = app.try_state::<tauri::menu::CheckMenuItem<tauri::Wry>>() {
+        let _ = toggle.set_checked(true);
+    }
     app.emit("recording-status", "recording")
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -201,6 +211,9 @@ pub fn pause_recording(
     scheduler: State<'_, CaptureScheduler>,
 ) -> Result<(), String> {
     scheduler.pause();
+    if let Some(toggle) = app.try_state::<tauri::menu::CheckMenuItem<tauri::Wry>>() {
+        let _ = toggle.set_checked(false);
+    }
     app.emit("recording-status", "paused")
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -212,6 +225,9 @@ pub fn stop_recording(
     scheduler: State<'_, CaptureScheduler>,
 ) -> Result<(), String> {
     scheduler.stop();
+    if let Some(toggle) = app.try_state::<tauri::menu::CheckMenuItem<tauri::Wry>>() {
+        let _ = toggle.set_checked(false);
+    }
     app.emit("recording-status", "stopped")
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -281,6 +297,7 @@ fn process_encryption_and_save_config(
 
 #[tauri::command]
 pub fn save_settings(
+    app: AppHandle,
     db: State<'_, Database>,
     scheduler: State<'_, CaptureScheduler>,
     idle_detector: State<'_, IdleDetector>,
@@ -291,9 +308,20 @@ pub fn save_settings(
     process_encryption_and_save_config(&current_settings.vision_provider, &mut settings.vision_provider)?;
     process_encryption_and_save_config(&current_settings.text_provider, &mut settings.text_provider)?;
     db.save_settings(&settings)?;
-    db.purge_records_older_than(settings.data_retention_days)?;
+    let _ = db.backup_database();
+    db.check_and_perform_cache_cleanup(settings.auto_cleanup_cache_days)?;
     scheduler.set_interval(settings.capture_interval_secs as u64);
     idle_detector.set_threshold(settings.idle_timeout_secs as u64);
+
+    // Sync autostart configuration
+    use tauri_plugin_autostart::ManagerExt;
+    let autostart_manager = app.autolaunch();
+    if settings.auto_start {
+        let _ = autostart_manager.enable();
+    } else {
+        let _ = autostart_manager.disable();
+    }
+
     Ok(())
 }
 
@@ -322,10 +350,84 @@ pub fn clear_all_data(db: State<'_, Database>) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct StorageSizeInfo {
+    pub db_size_bytes: u64,
+    pub cache_size_bytes: u64,
+}
+
+fn get_dir_size<P: AsRef<std::path::Path>>(path: P) -> std::io::Result<u64> {
+    let mut size = 0;
+    let path = path.as_ref();
+    if path.is_dir() {
+        for entry in std::fs::read_dir(path)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                size += get_dir_size(&path)?;
+            } else {
+                size += entry.metadata()?.len();
+            }
+        }
+    }
+    Ok(size)
+}
+
 #[tauri::command]
-pub fn cleanup_local_storage(db: State<'_, Database>, retention_days: u32) -> Result<(), String> {
-    db.purge_records_older_than(retention_days)?;
-    db.checkpoint_wal()?;
+pub fn get_storage_size() -> Result<StorageSizeInfo, String> {
+    let db_path = crate::platform::paths::db_path();
+    let db_size = if db_path.exists() {
+        std::fs::metadata(&db_path)
+            .map(|m| m.len())
+            .unwrap_or(0)
+    } else {
+        0
+    };
+
+    let cache_dir = crate::platform::paths::app_cache_dir();
+    let cache_size = get_dir_size(&cache_dir).unwrap_or(0);
+
+    Ok(StorageSizeInfo {
+        db_size_bytes: db_size,
+        cache_size_bytes: cache_size,
+    })
+}
+
+#[tauri::command]
+pub fn clear_data_selective(
+    db: State<'_, Database>,
+    clear_cache: bool,
+    clear_database: bool,
+) -> Result<(), String> {
+    if clear_database {
+        let conn = db.conn();
+        conn.execute_batch(
+            "DELETE FROM activities;
+             DELETE FROM analysis_jobs;
+             DELETE FROM api_usage;
+             DELETE FROM reports;
+             DELETE FROM capture_sessions;
+             DELETE FROM settings;",
+        )
+        .map_err(|e| e.to_string())?;
+        db.checkpoint_wal()?;
+
+        // Delete the local encryption key file
+        let key_path = crate::platform::paths::app_data_dir().join("enc.key");
+        if key_path.exists() {
+            let _ = std::fs::remove_file(key_path);
+        }
+    }
+
+    if clear_cache {
+        crate::platform::paths::clear_cache().map_err(|error| error.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn cleanup_local_storage() -> Result<(), String> {
     crate::platform::paths::clear_cache().map_err(|error| error.to_string())?;
     Ok(())
 }
@@ -572,4 +674,9 @@ fn model_test_frame() -> Result<CapturedFrame, String> {
         display_index: 0,
         image_hash: None,
     })
+}
+
+#[tauri::command]
+pub fn send_notification(title: String, body: String) {
+    crate::platform::notifications::notify(&title, &body);
 }

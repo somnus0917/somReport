@@ -30,8 +30,8 @@ pub struct AppSettings {
     pub max_daily_cost_yuan: f64,
     pub auto_start: bool,
     pub notify_on_report: bool,
-    #[serde(default = "default_data_retention_days")]
-    pub data_retention_days: u32,
+    #[serde(default = "default_auto_cleanup_cache_days")]
+    pub auto_cleanup_cache_days: u32,
     #[serde(default)]
     pub vision_connection: ModelConnectionStatus,
     #[serde(default)]
@@ -64,13 +64,13 @@ impl Default for AppSettings {
             max_daily_cost_yuan: 5.0,
             auto_start: false,
             notify_on_report: true,
-            data_retention_days: default_data_retention_days(),
+            auto_cleanup_cache_days: default_auto_cleanup_cache_days(),
             vision_connection: ModelConnectionStatus::default(),
             text_connection: ModelConnectionStatus::default(),
         }
     }
 }
 
-fn default_data_retention_days() -> u32 {
-    30
+fn default_auto_cleanup_cache_days() -> u32 {
+    7
 }

@@ -20,14 +20,23 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    let _ = window.hide();
+                    api.prevent_close();
+                }
+            }
+        })
         .setup(|app| {
             let db_path = platform::paths::db_path();
             platform::paths::ensure_dirs().expect("failed to create app directories");
 
             let db = storage::Database::new(&db_path).expect("failed to open database");
+            let _ = db.backup_database();
             let settings = db.get_settings().unwrap_or_default();
-            if let Err(error) = db.purge_records_older_than(settings.data_retention_days) {
-                log::warn!("Failed to apply data retention policy: {error}");
+            if let Err(error) = db.check_and_perform_cache_cleanup(settings.auto_cleanup_cache_days) {
+                log::warn!("Failed to apply automatic cache cleanup policy: {error}");
             }
             app.manage(db.clone());
 
@@ -79,6 +88,7 @@ pub fn run() {
             commands::get_today,
             commands::update_activity,
             commands::delete_activity,
+            commands::delete_report,
             commands::generate_report,
             commands::list_reports,
             commands::start_recording,
@@ -90,11 +100,14 @@ pub fn run() {
             commands::get_settings,
             commands::save_settings,
             commands::clear_all_data,
+            commands::clear_data_selective,
+            commands::get_storage_size,
             commands::cleanup_local_storage,
             commands::get_daily_usage,
             commands::test_model_connection,
             commands::save_model_config,
             commands::save_and_test_model,
+            commands::send_notification,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

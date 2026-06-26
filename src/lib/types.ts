@@ -12,7 +12,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   meeting: '会议',
   communication: '沟通',
   documentation: '文档',
-  research: '研究',
+  research: '调研',
   design: '设计',
   other: '其他',
 };
@@ -80,7 +80,7 @@ export interface AppSettings {
   max_daily_cost_yuan: number;
   auto_start: boolean;
   notify_on_report: boolean;
-  data_retention_days: number;
+  auto_cleanup_cache_days: number;
   vision_connection: ModelConnectionStatus;
   text_connection: ModelConnectionStatus;
 }

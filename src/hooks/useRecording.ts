@@ -5,6 +5,7 @@ import {
   getDailyUsage,
   updateActivity,
   deleteActivity,
+  deleteReport,
 } from '../api/tauri';
 
 export function useToday() {
@@ -44,6 +45,16 @@ export function useDeleteActivity() {
     mutationFn: deleteActivity,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['today'] });
+    },
+  });
+}
+
+export function useDeleteReport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteReport,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
     },
   });
 }
