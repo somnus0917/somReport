@@ -65,6 +65,7 @@ export interface DailyUsage {
 export interface ProviderConfig {
   name: string;
   api_key_env_var: string | null;
+  api_key: string | null;
   api_url: string;
   model: string;
   input_cost_per_million_yuan: number;

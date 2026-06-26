@@ -135,6 +135,16 @@ export default function ModelConfig() {
           <input value={config.api_url} onChange={(event) => setConfig({ ...config, api_url: event.target.value })} />
         </label>
 
+        <label>
+          API 密钥 (API Key)
+          <input
+            type="password"
+            placeholder={config.api_key_env_var ? `优先读取此处的输入。若为空，则回退读取环境变量 ${config.api_key_env_var}` : "请输入您的 API 密钥"}
+            value={config.api_key || ''}
+            onChange={(event) => setConfig({ ...config, api_key: event.target.value })}
+          />
+        </label>
+
         <div className="settings-input-grid">
           <label>
             输入价格（元 / 100 万 tokens）

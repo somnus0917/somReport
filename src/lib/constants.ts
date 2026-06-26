@@ -40,6 +40,7 @@ export function providerDefaults(
   | "api_url"
   | "model"
   | "api_key_env_var"
+  | "api_key"
   | "input_cost_per_million_yuan"
   | "output_cost_per_million_yuan"
 > {
@@ -48,6 +49,7 @@ export function providerDefaults(
       api_url: "https://api.anthropic.com",
       model: "claude-sonnet-4-20250514",
       api_key_env_var: "ANTHROPIC_API_KEY",
+      api_key: null,
       input_cost_per_million_yuan: 3,
       output_cost_per_million_yuan: 15,
     };
@@ -55,16 +57,18 @@ export function providerDefaults(
   if (provider === "qwen") {
     return {
       api_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-      model: role === "vision" ? "qwen3.6-flash" : "qwen3.6-flash",
+      model: role === "vision" ? "qwen3.5-flash" : "qwen3.5-flash",
       api_key_env_var: "QWEN_API_KEY",
-      input_cost_per_million_yuan: 0,
-      output_cost_per_million_yuan: 0,
+      api_key: null,
+      input_cost_per_million_yuan: 0.2,
+      output_cost_per_million_yuan: 1.2,
     };
   }
   return {
     api_url: "https://api.openai.com/v1",
     model: "gpt-4o-mini",
     api_key_env_var: "OPENAI_API_KEY",
+    api_key: null,
     input_cost_per_million_yuan: 0.15,
     output_cost_per_million_yuan: 0.6,
   };
@@ -74,18 +78,20 @@ export const DEFAULT_SETTINGS: AppSettings = {
   vision_provider: {
     name: "qwen",
     api_key_env_var: "QWEN_API_KEY",
+    api_key: null,
     api_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    model: "qwen3.6-flash",
-    input_cost_per_million_yuan: 0,
-    output_cost_per_million_yuan: 0,
+    model: "qwen3.5-flash",
+    input_cost_per_million_yuan: 0.2,
+    output_cost_per_million_yuan: 1.2,
   },
   text_provider: {
     name: "qwen",
     api_key_env_var: "QWEN_API_KEY",
+    api_key: null,
     api_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    model: "qwen3.6-plus",
-    input_cost_per_million_yuan: 0,
-    output_cost_per_million_yuan: 0,
+    model: "qwen3.5-plus",
+    input_cost_per_million_yuan: 0.2,
+    output_cost_per_million_yuan: 1.2,
   },
   capture_interval_secs: 30,
   idle_timeout_secs: 300,

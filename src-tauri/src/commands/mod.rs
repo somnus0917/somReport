@@ -246,7 +246,37 @@ pub fn show_floating_widget(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn get_settings(db: State<'_, Database>) -> Result<AppSettings, String> {
-    db.get_settings()
+    let mut settings = db.get_settings()?;
+    if let Some(key) = &settings.vision_provider.api_key {
+        if !key.trim().is_empty() {
+            settings.vision_provider.api_key = Some("******".to_string());
+        }
+    }
+    if let Some(key) = &settings.text_provider.api_key {
+        if !key.trim().is_empty() {
+            settings.text_provider.api_key = Some("******".to_string());
+        }
+    }
+    Ok(settings)
+}
+
+fn process_encryption_and_save_config(
+    db_config: &ProviderConfig,
+    new_config: &mut ProviderConfig,
+) -> Result<(), String> {
+    if let Some(key) = &new_config.api_key {
+        if key == "******" {
+            new_config.api_key = db_config.api_key.clone();
+        } else if key.trim().is_empty() {
+            new_config.api_key = None;
+        } else {
+            let encrypted = providers::encrypt_key(key)?;
+            new_config.api_key = Some(encrypted);
+        }
+    } else {
+        new_config.api_key = db_config.api_key.clone();
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -254,9 +284,12 @@ pub fn save_settings(
     db: State<'_, Database>,
     scheduler: State<'_, CaptureScheduler>,
     idle_detector: State<'_, IdleDetector>,
-    settings: AppSettings,
+    mut settings: AppSettings,
 ) -> Result<(), String> {
     validate_settings(&settings)?;
+    let current_settings = db.get_settings()?;
+    process_encryption_and_save_config(&current_settings.vision_provider, &mut settings.vision_provider)?;
+    process_encryption_and_save_config(&current_settings.text_provider, &mut settings.text_provider)?;
     db.save_settings(&settings)?;
     db.purge_records_older_than(settings.data_retention_days)?;
     scheduler.set_interval(settings.capture_interval_secs as u64);
@@ -280,6 +313,12 @@ pub fn clear_all_data(db: State<'_, Database>) -> Result<(), String> {
     }
     db.checkpoint_wal()?;
     crate::platform::paths::cleanup_temp_files().map_err(|e| e.to_string())?;
+
+    // Delete the local encryption key file
+    let key_path = crate::platform::paths::app_data_dir().join("enc.key");
+    if key_path.exists() {
+        let _ = std::fs::remove_file(key_path);
+    }
     Ok(())
 }
 
@@ -346,8 +385,23 @@ pub fn save_model_config(
     }
     validate_provider_config(&config)?;
     let mut settings = db.get_settings()?;
-    update_model_config(&mut settings, &provider_type, config)?;
+
+    let db_config = match provider_type.as_str() {
+        "vision" => settings.vision_provider.clone(),
+        "text" => settings.text_provider.clone(),
+        _ => unreachable!(),
+    };
+
+    update_model_config(&db_config, &mut settings, &provider_type, config)?;
     db.save_settings(&settings)?;
+
+    if let Some(key) = &mut settings.vision_provider.api_key {
+        if !key.trim().is_empty() { *key = "******".to_string(); }
+    }
+    if let Some(key) = &mut settings.text_provider.api_key {
+        if !key.trim().is_empty() { *key = "******".to_string(); }
+    }
+
     Ok(settings)
 }
 
@@ -357,7 +411,9 @@ pub async fn save_and_test_model(
     provider_type: String,
     config: ProviderConfig,
 ) -> Result<TestResult, String> {
-    let settings = save_model_config(db.clone(), provider_type.clone(), config)?;
+    let _ = save_model_config(db.clone(), provider_type.clone(), config)?;
+
+    let settings = db.get_settings()?;
     let active_config = match provider_type.as_str() {
         "vision" => settings.vision_provider,
         "text" => settings.text_provider,
@@ -388,7 +444,7 @@ async fn test_model_config(provider_type: &str, config: &ProviderConfig) -> Test
     );
 
     // Resolve API key
-    if let Err(e) = providers::resolve_api_key(config) {
+    if let Err(e) = providers::resolve_api_key(config, provider_type) {
         log::error!("Failed to resolve API key: {e}");
         return TestResult {
             success: false,
@@ -451,10 +507,12 @@ async fn test_model_config(provider_type: &str, config: &ProviderConfig) -> Test
 }
 
 fn update_model_config(
+    db_config: &ProviderConfig,
     settings: &mut AppSettings,
     provider_type: &str,
-    config: ProviderConfig,
+    mut config: ProviderConfig,
 ) -> Result<(), String> {
+    process_encryption_and_save_config(db_config, &mut config)?;
     match provider_type {
         "vision" => {
             settings.vision_provider = config;

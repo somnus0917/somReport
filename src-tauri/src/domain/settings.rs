@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 pub struct ProviderConfig {
     pub name: String,
     pub api_key_env_var: Option<String>,
+    #[serde(default)]
+    pub api_key: Option<String>,
     pub api_url: String,
     pub model: String,
     #[serde(default)]
@@ -42,18 +44,20 @@ impl Default for AppSettings {
             vision_provider: ProviderConfig {
                 name: "qwen".to_string(),
                 api_key_env_var: Some("QWEN_API_KEY".to_string()),
+                api_key: None,
                 api_url: "https://dashscope.aliyuncs.com/compatible-mode/v1".to_string(),
-                model: "qwen3.6-flash".to_string(),
-                input_cost_per_million_yuan: 0.0,
-                output_cost_per_million_yuan: 0.0,
+                model: "qwen3.5-flash".to_string(),
+                input_cost_per_million_yuan: 0.2,
+                output_cost_per_million_yuan: 1.2,
             },
             text_provider: ProviderConfig {
                 name: "qwen".to_string(),
                 api_key_env_var: Some("QWEN_API_KEY".to_string()),
+                api_key: None,
                 api_url: "https://dashscope.aliyuncs.com/compatible-mode/v1".to_string(),
-                model: "qwen3.6-flash".to_string(),
-                input_cost_per_million_yuan: 0.0,
-                output_cost_per_million_yuan: 0.0,
+                model: "qwen3.5-flash".to_string(),
+                input_cost_per_million_yuan: 0.2,
+                output_cost_per_million_yuan: 1.2,
             },
             capture_interval_secs: 30,
             idle_timeout_secs: 300,
