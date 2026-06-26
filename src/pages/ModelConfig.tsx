@@ -71,6 +71,10 @@ export default function ModelConfig() {
     response: null,
   });
 
+  const hasInvalidFields =
+    Number.isNaN(activeConfig.input_cost_per_million_yuan) ||
+    Number.isNaN(activeConfig.output_cost_per_million_yuan);
+
   function updateProvider(name: string) {
     const defaults = providerDefaults(activeRole, name);
     setConfig({ ...activeConfig, name, ...defaults });
@@ -173,8 +177,16 @@ export default function ModelConfig() {
               type="number"
               min={0}
               step="0.01"
-              value={config.input_cost_per_million_yuan}
-              onChange={(event) => setConfig({ ...config, input_cost_per_million_yuan: Number(event.target.value) })}
+              value={Number.isNaN(config.input_cost_per_million_yuan) ? "" : config.input_cost_per_million_yuan}
+              onChange={(event) =>
+                setConfig({
+                  ...config,
+                  input_cost_per_million_yuan:
+                    event.target.value === ""
+                      ? NaN
+                      : Number(event.target.value),
+                })
+              }
             />
           </label>
           <label>
@@ -183,8 +195,16 @@ export default function ModelConfig() {
               type="number"
               min={0}
               step="0.01"
-              value={config.output_cost_per_million_yuan}
-              onChange={(event) => setConfig({ ...config, output_cost_per_million_yuan: Number(event.target.value) })}
+              value={Number.isNaN(config.output_cost_per_million_yuan) ? "" : config.output_cost_per_million_yuan}
+              onChange={(event) =>
+                setConfig({
+                  ...config,
+                  output_cost_per_million_yuan:
+                    event.target.value === ""
+                      ? NaN
+                      : Number(event.target.value),
+                })
+              }
             />
           </label>
         </div>
@@ -200,10 +220,10 @@ export default function ModelConfig() {
         </div>
 
           <div className="model-config-actions">
-          <button className="btn-sm btn-primary" disabled={action !== null} onClick={() => save(true)}>
+          <button className="btn-sm btn-primary" disabled={action !== null || hasInvalidFields} onClick={() => save(true)}>
             {action === 'test' ? '正在保存并测试…' : copy.testLabel}
           </button>
-          <button className="btn-sm" disabled={action !== null} onClick={() => save(false)}>
+          <button className="btn-sm" disabled={action !== null || hasInvalidFields} onClick={() => save(false)}>
             {action === 'save' ? '正在保存…' : '仅保存'}
           </button>
           <button className="btn-sm model-config-cancel" disabled={action !== null} onClick={() => navigate('/settings')}>取消</button>

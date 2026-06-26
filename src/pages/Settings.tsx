@@ -114,6 +114,12 @@ export default function Settings() {
       activeSettings[key as keyof OperationalSettings] !== value,
   );
 
+  const hasInvalidFields =
+    Number.isNaN(operationalForm.capture_interval_secs) ||
+    Number.isNaN(operationalForm.idle_timeout_secs) ||
+    Number.isNaN(operationalForm.max_daily_cost_yuan) ||
+    Number.isNaN(operationalForm.auto_cleanup_cache_days);
+
   async function saveOperationalSettings() {
     setSaving(true);
     setError(null);
@@ -230,11 +236,18 @@ export default function Settings() {
                 type="number"
                 min={5}
                 max={3600}
-                value={operationalForm.capture_interval_secs}
+                value={
+                  Number.isNaN(operationalForm.capture_interval_secs)
+                    ? ""
+                    : operationalForm.capture_interval_secs
+                }
                 onChange={(event) =>
                   setForm({
                     ...operationalForm,
-                    capture_interval_secs: Number(event.target.value),
+                    capture_interval_secs:
+                      event.target.value === ""
+                        ? NaN
+                        : Number(event.target.value),
                   })
                 }
               />
@@ -245,11 +258,18 @@ export default function Settings() {
                 type="number"
                 min={30}
                 max={86400}
-                value={operationalForm.idle_timeout_secs}
+                value={
+                  Number.isNaN(operationalForm.idle_timeout_secs)
+                    ? ""
+                    : operationalForm.idle_timeout_secs
+                }
                 onChange={(event) =>
                   setForm({
                     ...operationalForm,
-                    idle_timeout_secs: Number(event.target.value),
+                    idle_timeout_secs:
+                      event.target.value === ""
+                        ? NaN
+                        : Number(event.target.value),
                   })
                 }
               />
@@ -260,11 +280,18 @@ export default function Settings() {
                 type="number"
                 min={0}
                 step="0.01"
-                value={operationalForm.max_daily_cost_yuan}
+                value={
+                  Number.isNaN(operationalForm.max_daily_cost_yuan)
+                    ? ""
+                    : operationalForm.max_daily_cost_yuan
+                }
                 onChange={(event) =>
                   setForm({
                     ...operationalForm,
-                    max_daily_cost_yuan: Number(event.target.value),
+                    max_daily_cost_yuan:
+                      event.target.value === ""
+                        ? NaN
+                        : Number(event.target.value),
                   })
                 }
               />
@@ -274,11 +301,18 @@ export default function Settings() {
               <input
                 type="number"
                 min={0}
-                value={operationalForm.auto_cleanup_cache_days}
+                value={
+                  Number.isNaN(operationalForm.auto_cleanup_cache_days)
+                    ? ""
+                    : operationalForm.auto_cleanup_cache_days
+                }
                 onChange={(event) =>
                   setForm({
                     ...operationalForm,
-                    auto_cleanup_cache_days: Number(event.target.value),
+                    auto_cleanup_cache_days:
+                      event.target.value === ""
+                        ? NaN
+                        : Number(event.target.value),
                   })
                 }
               />
@@ -322,7 +356,7 @@ export default function Settings() {
             {error && <p className="settings-inline-error">{error}</p>}
             <button
               className="btn-sm btn-primary"
-              disabled={!hasChanges || saving}
+              disabled={!hasChanges || saving || hasInvalidFields}
               onClick={saveOperationalSettings}
             >
               {saving ? "保存中…" : "保存采集设置"}
