@@ -27,5 +27,8 @@ dist-ssr
 .claude/
 .codex/
 
+# pnpm
+.pnpm-store/
+
 # Rust
 src-tauri/target/
