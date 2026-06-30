@@ -201,9 +201,6 @@ export default function Settings() {
               </div>
               <h4>{title}</h4>
               <p className="model-role-model">{config.model}</p>
-              <p className="model-role-provider">
-                {config.name} · {config.api_url.replace(/^https?:\/\//, "")}
-              </p>
               <div className="model-role-proof">
                 <span>{formatTestedAt(status.tested_at)}</span>
                 {status.message && (
