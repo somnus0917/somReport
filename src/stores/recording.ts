@@ -9,6 +9,8 @@ import {
   onRecordingStatus,
   onActivityCreated,
 } from '../api/tauri';
+import type { Activity, TodayStats } from '../lib/types';
+import { elapsedSeconds, parseDateTimestamp } from '../lib/datetime';
 
 interface RecordingUIStore {
   recordingState: RecordingState;
@@ -19,6 +21,31 @@ interface RecordingUIStore {
   stop: () => Promise<void>;
   subscribe: () => () => void;
   clearError: () => void;
+}
+
+function calculateTodayStats(activities: Activity[]): TodayStats {
+  const totalSeconds = activities.reduce((sum, activity) => {
+    return sum + elapsedSeconds(activity.started_at, activity.ended_at);
+  }, 0);
+  const workSeconds = activities
+    .filter((activity) => activity.is_work_related)
+    .reduce((sum, activity) => {
+      return sum + elapsedSeconds(activity.started_at, activity.ended_at);
+    }, 0);
+
+  return {
+    total_minutes: Math.round(totalSeconds / 60),
+    work_minutes: Math.round(workSeconds / 60),
+    activity_count: activities.length,
+  };
+}
+
+function mergeActivity(activities: Activity[], activity: Activity): Activity[] {
+  const next = activities.filter((item) => item.id !== activity.id);
+  next.push(activity);
+  return next.sort(
+    (a, b) => parseDateTimestamp(a.started_at) - parseDateTimestamp(b.started_at),
+  );
 }
 
 export const useRecordingStore = create<RecordingUIStore>((set) => ({
@@ -68,8 +95,13 @@ export const useRecordingStore = create<RecordingUIStore>((set) => ({
       set({ recordingState });
     });
 
-    const unlistenActivity = onActivityCreated(() => {
+    const unlistenActivity = onActivityCreated((activity) => {
+      queryClient.setQueryData<[Activity[], TodayStats]>(['today'], (current) => {
+        const activities = mergeActivity(current?.[0] ?? [], activity);
+        return [activities, calculateTodayStats(activities)];
+      });
       queryClient.invalidateQueries({ queryKey: ['today'] });
+      queryClient.invalidateQueries({ queryKey: ['dailyUsage'] });
     });
 
     return () => {

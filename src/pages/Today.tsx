@@ -5,6 +5,7 @@ import CaptureToggle from "../components/CaptureToggle";
 import StatusBadge from "../components/StatusBadge";
 import BudgetIndicator from "../components/BudgetIndicator";
 import Timeline from "../components/Timeline";
+import ActivityHeatmap from "../components/ActivityHeatmap";
 import { LoadingState } from "../components/StateViews";
 import { showFloatingWidget } from "../api/tauri";
 export default function Today() {
@@ -55,7 +56,14 @@ export default function Today() {
         <BudgetIndicator stats={stats} usage={usage} />
       </header>
       <main className="today-main">
-        {todayLoading ? <LoadingState /> : <Timeline activities={activities} />}
+        {todayLoading ? (
+          <LoadingState />
+        ) : (
+          <>
+            <ActivityHeatmap activities={activities} />
+            <Timeline activities={activities} />
+          </>
+        )}
       </main>
     </div>
   );

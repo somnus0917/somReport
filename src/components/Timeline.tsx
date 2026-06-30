@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import type { Activity, Category } from '../lib/types';
 import { CATEGORY_COLORS, CATEGORIES } from '../lib/constants';
 import ActivityCard from './ActivityCard';
+import { elapsedSeconds } from '../lib/datetime';
 
 interface Props {
   activities: Activity[];
@@ -19,7 +20,7 @@ function groupByCategory(activities: Activity[]): Map<Category, Activity[]> {
 
 function categoryTotalMinutes(activities: Activity[]): number {
   return activities.reduce((sum, a) => {
-    return sum + (new Date(a.ended_at).getTime() - new Date(a.started_at).getTime()) / 60000;
+    return sum + elapsedSeconds(a.started_at, a.ended_at) / 60;
   }, 0);
 }
 
@@ -126,4 +127,3 @@ export default function Timeline({ activities }: Props) {
     </div>
   );
 }
-

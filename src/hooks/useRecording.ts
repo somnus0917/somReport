@@ -12,6 +12,8 @@ export function useToday() {
   return useQuery({
     queryKey: ['today'],
     queryFn: getToday,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
   });
 }
 

@@ -2,18 +2,18 @@ import { useState } from 'react';
 import type { Activity, Category } from '../lib/types';
 import { CATEGORIES, CATEGORY_COLORS } from '../lib/constants';
 import { useUpdateActivity, useDeleteActivity } from '../hooks/useRecording';
+import { elapsedSeconds, parseDate } from '../lib/datetime';
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return parseDate(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 function formatDuration(start: string, end: string): string {
-  const ms = new Date(end).getTime() - new Date(start).getTime();
-  const secs = Math.max(1, Math.round(ms / 1000));
+  const secs = Math.max(1, Math.round(elapsedSeconds(start, end)));
   if (secs < 60) {
     return `${secs}秒`;
   }
-  const mins = Math.round(ms / 60000);
+  const mins = Math.round(secs / 60);
   if (mins < 60) return `${mins}分钟`;
   const h = Math.floor(mins / 60);
   const m = mins % 60;
